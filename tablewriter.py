@@ -21,7 +21,7 @@ class TableWriter:
         self.__footer = ""
         
         expected = ["data", "path", "label", "caption", "col_names", "row_names",
-                    "packages_commands", "load"]
+                    "packages_commands", "load", "escape_special_chars"]
         for name in kwargs:
             if not name in expected:
                 raise ValueError("Unexpected argument " + name)
@@ -29,10 +29,12 @@ class TableWriter:
         self.__path = kwargs.get("path", "")
         self.__label = kwargs.get("label", "")
         self.__caption = kwargs.get("caption", "")
+        self.__escape_special_chars = kwargs.get("escape_special_chars", False)
         col_names = kwargs.get("col_names", [])
         row_names = kwargs.get("row_names", [])
         load = kwargs.get("load", False)
         self.__packages_commands = kwargs.get("packages_commands", [])
+        self.__special_char = ["_","^"]
         if not type(self.__path) == Path:
             self.__path = Path(self.__path)
         if load:
@@ -82,6 +84,28 @@ class TableWriter:
         return self.__data.columns
     def get_row_names(self):
         return self.__data.index
+    
+    def escape_special_chars(self, s):
+        """ Will add '\\' before special characters outside of mathmode
+        """
+        
+        if not type(s) == str:
+            return s
+        in_math = False
+        previous_c = ""
+        s2 = ""
+        for c in s:
+            if c == "$":
+                in_math = not in_math
+            if in_math:
+                s2 += c
+                previous_c = c
+                continue
+            if c in self.__special_char and not previous_c == "\\":
+                c =  "\\" + c
+            previous_c = c
+            s2 += c
+        return s2
 
 #   Table makers
     def set_line(self, line, name = ""):
@@ -90,6 +114,8 @@ class TableWriter:
         
         TableWriter.printv("Adding/changing line in table.")
         if name != "":
+            print(self.__data)
+            print(line)
             self.__data.loc[name] = line
             return
         else:
@@ -208,7 +234,7 @@ class TableWriter:
                         + str(paperwidth) + "cm, paperheight="
                         + str(paperheight) + "cm]{geometry}\n")
         self.__header += ("\\usepackage{longtable}\n\\usepackage{xcolor}\n"
-                        + "\\usepackage{booktabs}\n")
+                        + "\\usepackage{booktabs}\n\\usepackage[utf8]{inputenc}\n")
         for package in self.__packages_commands:
             self.__header += package + "\n"
         
@@ -253,6 +279,17 @@ class TableWriter:
             raise ValueError("Must specify a file path.")
         
         with open(self.__path, "w") as outfile:
+            if self.__escape_special_chars:
+                self.__data.index = [self.escape_special_chars(s) for s in 
+                                     self.__data.index]
+                self.__data.columns = [self.escape_special_chars(s) for s in 
+                                      self.__data.columns]
+                self.__data = pd.DataFrame(
+                    index = [self.escape_special_chars(s) for s in self.__data.index],
+                    columns = [self.escape_special_chars(s) for s in self.__data.columns],
+                    data = [self.escape_special_chars(s) for s in  self.__data.values]
+                )
+                
             self.make_header()
             outfile.write(self.__header)
             self.make_body()

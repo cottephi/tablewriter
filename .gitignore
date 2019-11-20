@@ -1,5 +1,7 @@
 */
 *~
-*.sh
-setup.py
-iterate_version.py
+*.aux
+*.log
+*.tex
+*.pdf
+*.gz
