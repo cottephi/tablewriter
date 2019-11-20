@@ -35,7 +35,7 @@ class TableWriter:
         row_names = kwargs.get("row_names", [])
         load = kwargs.get("load", False)
         self.__packages_commands = kwargs.get("packages_commands", [])
-        self.__special_char = ["_", "^", "%"]
+        self.__special_char = ["_", "^", "%", "&"]
         if not type(self.__path) == Path:
             self.__path = Path(self.__path)
         if load:
@@ -226,7 +226,7 @@ class TableWriter:
         charswidth = (len("".join(list(self.__data.columns)))
                     + len(str(self.__data.index[0])))*0.167
         paperwidth = charswidth + 0.8*(len(self.__data.columns))+1  # pifometre!
-        paperheight = 3.5+(len(self.__data.index))*0.42  # pifometre!
+        paperheight = 3.5+(len(self.__data.index))*0.45  # pifometre!
         if paperwidth < 9:
             paperwidth = 9
         if paperheight < 4:
