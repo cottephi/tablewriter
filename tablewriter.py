@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import time
 import pandas as pd
+from collections.abc import Iterable
 
 class TableWriter:
     
@@ -34,7 +35,7 @@ class TableWriter:
         row_names = kwargs.get("row_names", [])
         load = kwargs.get("load", False)
         self.__packages_commands = kwargs.get("packages_commands", [])
-        self.__special_char = ["_","^"]
+        self.__special_char = ["_", "^", "%"]
         if not type(self.__path) == Path:
             self.__path = Path(self.__path)
         if load:
@@ -89,7 +90,10 @@ class TableWriter:
         """ Will add '\\' before special characters outside of mathmode
         """
         
-        if not type(s) == str:
+        if isinstance(s, Iterable) and type(s) != str:
+            for i in range(len(s)):
+                s[i] = self.escape_special_chars(s[i])
+        if type(s) != str:
             return s
         in_math = False
         previous_c = ""
@@ -280,16 +284,11 @@ class TableWriter:
         
         with open(self.__path, "w") as outfile:
             if self.__escape_special_chars:
-                self.__data.index = [self.escape_special_chars(s) for s in 
-                                     self.__data.index]
-                self.__data.columns = [self.escape_special_chars(s) for s in 
-                                      self.__data.columns]
-                self.__data = pd.DataFrame(
-                    index = [self.escape_special_chars(s) for s in self.__data.index],
-                    columns = [self.escape_special_chars(s) for s in self.__data.columns],
-                    data = [self.escape_special_chars(s) for s in  self.__data.values]
-                )
-                
+                self.__data.index = [self.escape_special_chars(s)
+                                     for s in self.__data.index]
+                self.__data.columns = [self.escape_special_chars(s)
+                                       for s in self.__data.columns]
+                self.__data = self.__data.apply(self.escape_special_chars, axis=1)
             self.make_header()
             outfile.write(self.__header)
             self.make_body()

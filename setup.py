@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="tablewriter",
-    version="0.0.0.4",
+    version="0.0.0.6",
     author="cottephi",
     author_email="cottephi@gmail.com",
     description="latex table generator",
