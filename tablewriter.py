@@ -2,7 +2,19 @@ from pathlib import Path
 import os
 import time
 import pandas as pd
+import numpy as np
 from collections.abc import Iterable
+
+# To change the color of some elements in the dataframe under some condition, do:
+#  dff is some dataframe. In this example, negative values are set to red
+#    dff = dff.mask(dff < 0, TableWriter.set_color_dataframe(dff, "red"))
+#    dff = pd.DataFrame(columns=dff.columns,
+#                       index=dff.index,
+#                       data=dff.values.astype(str))
+#    dff = dff.mask(dff == "nan", "")
+#    writer = TableWriter(data=dff,
+#                     caption="Slippage analysis",
+#                     escape_special_chars=True)
 
 class TableWriter:
     
@@ -22,7 +34,8 @@ class TableWriter:
         self.__footer = ""
         
         expected = ["data", "path", "label", "caption", "col_names", "row_names",
-                    "packages_commands", "load", "escape_special_chars"]
+                    "packages_commands", "load", "escape_special_chars",
+                    "paperwidth", "paperheight", "number"]
         for name in kwargs:
             if not name in expected:
                 raise ValueError("Unexpected argument " + name)
@@ -30,6 +43,12 @@ class TableWriter:
         self.__path = kwargs.get("path", "")
         self.__label = kwargs.get("label", "")
         self.__caption = kwargs.get("caption", "")
+        self.__paperwidth = kwargs.get("paperwidth", 0)
+        self.__paperheight = kwargs.get("paperheight", 0)
+        self.__ndecimals = kwargs.get("ndecimals", 4)
+        self.__number = kwargs.get("number", "0")
+        if not isinstance(self.__number, str):
+            self.__number = str(int(self.__number))
         self.__escape_special_chars = kwargs.get("escape_special_chars", False)
         col_names = kwargs.get("col_names", [])
         row_names = kwargs.get("row_names", [])
@@ -45,7 +64,9 @@ class TableWriter:
             if type(self.__data) != pd.DataFrame:
                 self.__data = pd.DataFrame(columns=col_names,
                                            index=row_names,
-                                           data=self.__data)
+                                           data=self.__data.astype(str))
+            else:
+                self.__data = self.__data.astype(str)
 
 # setters
     def set_data(self, data):
@@ -64,6 +85,18 @@ class TableWriter:
         self.__data.columns = col_names
     def set_row_names(self, row_names):
         self.__data.index = row_names
+    def set_item(self, index, column, value):
+        self.__data.at[index, column] = value
+    def set_number(self, number):
+        self.__number = number
+        if not isinstance(self.__number, str):
+            self.__number = str(int(self.__number))
+    
+    def rename(self, dick, axis=0):
+        if axis == 0:
+            self.__data.rename(index=dick, inplace=True)
+        if axis == 1:
+            self.__data.rename(columns=dick, inplace=True)
 
 #getters
     def get_ncols(self):
@@ -85,11 +118,12 @@ class TableWriter:
         return self.__data.columns
     def get_row_names(self):
         return self.__data.index
+    def get_number(self):
+        return self.__number
     
     def escape_special_chars(self, s):
         """ Will add '\\' before special characters outside of mathmode
         """
-        
         if isinstance(s, Iterable) and type(s) != str:
             for i in range(len(s)):
                 s[i] = self.escape_special_chars(s[i])
@@ -118,8 +152,6 @@ class TableWriter:
         
         TableWriter.printv("Adding/changing line in table.")
         if name != "":
-            print(self.__data)
-            print(line)
             self.__data.loc[name] = line
             return
         else:
@@ -154,7 +186,7 @@ class TableWriter:
         with open(self.__path, "r") as ifile:
             lines = [line.split("\n")[0].split(" ") for line in ifile.readlines()]
         self.__header = ""
-        nlines_header = 8
+        nlines_header = 9
         for iline in range(len(lines)):
             #  Reads Header if iline inferior to number of lines in header
             if iline <= nlines_header:
@@ -223,35 +255,39 @@ class TableWriter:
     
     def make_header(self):
         TableWriter.printv("Making Header...")
-        charswidth = (len("".join(list(self.__data.columns)))
-                    + len(str(self.__data.index[0])))*0.167
-        paperwidth = charswidth + 0.8*(len(self.__data.columns))+1  # pifometre!
-        paperheight = 3.5+(len(self.__data.index))*0.45  # pifometre!
-        if paperwidth < 9:
-            paperwidth = 9
-        if paperheight < 4:
-            paperheight = 4 
-        if paperheight > 24:
-            paperheight = 24  # Limit page height to A4's 24 cm
+        if self.__paperwidth == 0:
+            charswidth = (len("".join(list(self.__data.columns)))
+                    + len(str(self.__data.index[0])))*0.178
+            self.__paperwidth = charswidth + 0.8*(len(self.__data.columns))+1  # pifometre!
+            if self.__paperwidth < 9:
+                self.__paperwidth = 9
+        if self.__paperheight == 0:
+            self.__paperheight = 3.5+(len(self.__data.index))*0.45  # pifometre!
+            if self.__paperheight < 4:
+                self.__paperheight = 4 
+            if self.__paperheight > 24:
+                self.__paperheight = 24  # Limit page height to A4's 24 cm
         self.__header = "\\documentclass{article}\n"
-        self.__header += ("\\usepackage[margin=0.5cm,paperwidth="
-                        + str(paperwidth) + "cm, paperheight="
-                        + str(paperheight) + "cm]{geometry}\n")
-        self.__header += ("\\usepackage{longtable}\n\\usepackage{xcolor}\n"
+        self.__header += ("\\usepackage[margin=0.5cm, paperwidth="
+                        + str(self.__paperwidth) + "cm, paperheight="
+                        + str(self.__paperheight) + "cm]{geometry}\n")
+        self.__header += ("\\usepackage{longtable}\n\\usepackage[dvipsnames]{xcolor}\n"
                         + "\\usepackage{booktabs}\n\\usepackage[utf8]{inputenc}\n")
         for package in self.__packages_commands:
             self.__header += package + "\n"
         
-        self.__header += "\\begin{document}\n\\nonstopmode\n"
+        self.__header += ("\\begin{document}\n\\nonstopmode\n\setcounter{table}{"
+                             + self.__number + "}\n")
         
         TableWriter.printv("...done")
     
     def make_body(self):
         TableWriter.printv("Making Body...")
         column_format = "|l|" + len(self.__data.columns)*"c" + "|"
-        self.__body = self.__data.to_latex(longtable=True,
-                                           escape=False,
-                                           column_format=column_format)
+        self.__body = self.__data.to_latex(
+                               longtable=True,
+                               escape=False,
+                               column_format=column_format)
         append_newline = False
         if self.__caption != "":
             in_table = self.__body.find("\\toprule")
@@ -325,27 +361,6 @@ class TableWriter:
         os.system(command)
         return True
     
-    def export_to_csv(self, path):
-        if path == "":
-            path = str(self.__path).replace(".tex", ".csv")
-        with open(path, "w") as outfile:
-            if self.__has_col_names:
-                outfile.write(",")
-                for j in range(len(self.__data.columns)):
-                    if j != len(self.__data.columns) - 1:
-                        outfile.write(self.remove_color(self.__data.columns[j]) + ",")
-                    else:
-                        outfile.write(self.remove_color(self.__data.columns[j]))
-            
-            for i in range(nrows):
-                outfile.write(self.remove_color(self.__data.index[i]) + ",")
-                for j in range(len(self.__data.columns)):
-                    if j != len(self.__data.columns) - 1:
-                        outfile.write(self.remove_color(self.__data[i][j]) + ",")
-                    else:
-                        outfile.write(self.remove_color(self.__data[i][j]))
-        return True
-    
     def remove_color(self, obj):
         has_color = "textcolor" in obj
         if not "\\textcolor{" in obj:
@@ -356,3 +371,13 @@ class TableWriter:
         no_color = after_color[after_color.find("{")+1:].replace("}","",1)
         return before_color + no_color
     
+    def set_color(s, color):
+        return "\\textcolor{" + color + "}{" + str(s) + "}"
+    
+    def set_color_dataframe(df, color):
+        data = df.values.astype(str)
+        data = [["\\textcolor{" + color + "}{" + s + "}"
+                 for s in col] for col in data]
+        return pd.DataFrame(columns=df.columns,
+                           index=df.index,
+                           data=data)
