@@ -351,7 +351,7 @@ class TableWriter:
         
         command = command + str(self.__path)
         if silenced:
-            if os.name == "posix"
+            if os.name == "posix":
                 command = command + " > /dev/null"
             else:
                 command = command + " > NUL"
