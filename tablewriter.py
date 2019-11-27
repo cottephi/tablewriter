@@ -351,7 +351,10 @@ class TableWriter:
         
         command = command + str(self.__path)
         if silenced:
-            command = command + " > /dev/null"
+            if os.name == "posix"
+                command = command + " > /dev/null"
+            else:
+                command = command + " > NUL"
         
         TableWriter.printv(command)
         os.system(command)
