@@ -339,7 +339,7 @@ class TableWriter:
         
         if recreate or not self.__path.is_file():
             if not self.create_tex_file():
-                return False
+                raise ValueError("Failed to create tex file.")
         
         if not self.__path.is_file():
             raise ValueError("Tex file " + str(self.__path) + " not found.")
@@ -347,9 +347,9 @@ class TableWriter:
         command = "pdflatex -synctex=1 -interaction=nonstopmode "
         parent = self.__path.parents[0]
         if parent != ".":
-            command = command + "-output-directory=" + str(parent) + " "
+            command = command + "-output-directory=\"" + str(parent) + "\" "
         
-        command = command + str(self.__path)
+        command = command + "\"" + str(self.__path) + "\""
         if silenced:
             if os.name == "posix":
                 command = command + " > /dev/null"
@@ -357,11 +357,13 @@ class TableWriter:
                 command = command + " > NUL"
         
         TableWriter.printv(command)
-        os.system(command)
+        x = os.system(command)
         time.sleep(0.5)
-        os.system(command)
+        x = os.system(command)
         time.sleep(0.5)
-        os.system(command)
+        x = os.system(command)
+        if x != 0:
+            raise ValueError("Failed to compile pdf")
         return True
     
     def remove_color(self, obj):
