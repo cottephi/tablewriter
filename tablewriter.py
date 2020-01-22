@@ -35,7 +35,7 @@ class TableWriter:
         
         expected = ["data", "path", "label", "caption", "col_names", "row_names",
                     "packages_commands", "load", "escape_special_chars",
-                    "paperwidth", "paperheight", "number"]
+                    "paperwidth", "paperheight", "number", "hide_numbering"]
         for name in kwargs:
             if not name in expected:
                 raise ValueError("Unexpected argument " + name)
@@ -47,6 +47,7 @@ class TableWriter:
         self.__paperheight = kwargs.get("paperheight", 0)
         self.__ndecimals = kwargs.get("ndecimals", 4)
         self.__number = kwargs.get("number", "0")
+        self.__hide_numbering = kwargs.get("hide_numbering", False)
         if not isinstance(self.__number, str):
             self.__number = str(int(self.__number))
         self.__escape_special_chars = kwargs.get("escape_special_chars", False)
@@ -186,7 +187,7 @@ class TableWriter:
         with open(self.__path, "r") as ifile:
             lines = [line.split("\n")[0].split(" ") for line in ifile.readlines()]
         self.__header = ""
-        nlines_header = 9
+        nlines_header = 10
         for iline in range(len(lines)):
             #  Reads Header if iline inferior to number of lines in header
             if iline <= nlines_header:
@@ -271,6 +272,7 @@ class TableWriter:
         self.__header += ("\\usepackage[margin=0.5cm, paperwidth="
                         + str(self.__paperwidth) + "cm, paperheight="
                         + str(self.__paperheight) + "cm]{geometry}\n")
+        self.__header += ("\\usepackage{caption}\n")
         self.__header += ("\\usepackage{longtable}\n\\usepackage[dvipsnames]{xcolor}\n"
                         + "\\usepackage{booktabs}\n\\usepackage[utf8]{inputenc}\n")
         for package in self.__packages_commands:
@@ -284,16 +286,22 @@ class TableWriter:
     def make_body(self):
         TableWriter.printv("Making Body...")
         column_format = "|l|" + len(self.__data.columns)*"c" + "|"
+        def_max_col = pd.get_option('display.max_colwidth')
+        pd.set_option('display.max_colwidth', -1)
         self.__body = self.__data.to_latex(
                                longtable=True,
                                escape=False,
                                column_format=column_format)
+        pd.set_option('display.max_colwidth', def_max_col)
         append_newline = False
         if self.__caption != "":
             in_table = self.__body.find("\\toprule")
             pre_table = self.__body[:in_table]
             post_table = self.__body[in_table:]
-            pre_table += "\\caption{" + self.__caption + "}\n"
+            if not self.__hide_numbering:
+                pre_table += "\\caption{" + self.__caption + "}\n"
+            else:
+                pre_table += "\\caption*{" + self.__caption + "}\n"
             self.__body = pre_table + post_table
             append_newline = True
         
