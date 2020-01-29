@@ -123,7 +123,6 @@ class TableWriter:
                 self.__path = Path(self.__path)
             if self.__path.suffix != ".tex":
                 self.__path = self.__path.with_suffix(".tex")
-        
         if len(read_args) > 0:
             self.load_from_file(read_args)
 
@@ -186,6 +185,8 @@ class TableWriter:
         self.__to_latex_args = args
 
     def set_path(self, path):
+        if path.suffix != ".tex":
+            path = path.with_suffix(".tex")
         self.__path = path
 
     def set_label(self, label):
