@@ -32,4 +32,4 @@ Example of use, assuming *df* is some pandas.DataFrame:
     # The values for the arguments below are the default values
     writer.compile(silenced=True, recreate=True, clean=True, clean_tex=False)
 
-**new** : 
+**new in 0.0.1.0** : Big changes : everything is based on pandas DataFrame now.
