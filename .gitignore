@@ -5,3 +5,5 @@
 *.tex
 *.pdf
 *.gz
+flake_test.sh
+test_result.txt
