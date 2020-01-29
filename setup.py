@@ -9,7 +9,8 @@ setuptools.setup(
     author="cottephi",
     author_email="cottephi@gmail.com",
     description="latex table generator",
-    long_description = long_description,
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     url="https://gitlab.com/cottephi/latextablegenerator",
     py_modules=["tablewriter"],
     classifiers=[
