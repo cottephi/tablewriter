@@ -323,7 +323,7 @@ class TableWriter:
         # Needed if you do not want long names to be truncated with "..." by pandas,
         # giving bullshit results in the .tex file
         def_max_col = pd.get_option('display.max_colwidth')
-        pd.set_option('display.max_colwidth', -1)
+        pd.set_option('display.max_colwidth', None)
         self.__body = self.__data.to_latex(**self.__to_latex_args)
         pd.set_option('display.max_colwidth', def_max_col)
         
