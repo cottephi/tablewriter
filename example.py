@@ -5,7 +5,7 @@ from tablewriter import TableWriter
 writer = TableWriter(
     data=df,
     caption="Caption to display in LateX",
-    label="label one can use to reference this table in Latex"
+    label="label one can use to reference this table in Latex",
     to_latex_args={"escape": True, "any_valid_to_latex_method_argument": value},
     paperwidth=25,  # width of the pdf. Optionnal, but automatic width sometime fails
     paperheight=15,  # same remark as above

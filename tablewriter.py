@@ -88,7 +88,7 @@ class TableWriter:
         """
         
         self.__header = ""
-        self.__body = ""
+        self.__body = "\\begin{document}\\end{document}"
         self.__footer = ""
         
         expected = ["data", "to_latex_args", "path", "label", "caption",
@@ -185,6 +185,8 @@ class TableWriter:
         self.__to_latex_args = args
 
     def set_path(self, path):
+        if isinstance(path, str):
+            path = Path(path)
         if path.suffix != ".tex":
             path = path.with_suffix(".tex")
         self.__path = path
@@ -260,14 +262,14 @@ class TableWriter:
         
         TableWriter.printv("  Making Header...")
         # Try to guess a kind of optimal width for the table
-        if self.__paperwidth == 0:
+        if self.__paperwidth == 0 and not self.__data.empty:
             charswidth = (len("".join(list(self.__data.columns.dropna())))
                           + max([len(ind) for ind in self.__data.index.dropna()])) * 0.178
             self.__paperwidth = charswidth + 0.8 * (len(self.__data.columns)) + 1
             if self.__paperwidth < 9:
                 self.__paperwidth = 9
         # Same for height
-        if self.__paperheight == 0:
+        if self.__paperheight == 0 and not self.__data.empty:
             self.__paperheight = 3.5 + (len(self.__data.index)) * 0.45
             if self.__paperheight < 4:
                 self.__paperheight = 4
@@ -320,11 +322,20 @@ class TableWriter:
             self.__to_latex_args["column_format"] = (
                 "|l|" + len(self.__data.columns) * "c" + "|")
         
-        # Needed if you do not want long names to be truncated with "..." by pandas,
-        # giving bullshit results in the .tex file
+        # Needed if you do not want long names to be truncated with "..."
+        # by pandas, giving bullshit results in the .tex file
         def_max_col = pd.get_option('display.max_colwidth')
-        pd.set_option('display.max_colwidth', None)
-        self.__body = self.__data.to_latex(**self.__to_latex_args)
+        if pd.__version__.split(".")[0] == "0":  # pandas is older than 1.0.0
+            pd.set_option('display.max_colwidth', -1)
+        else:  # pandas is 1.0.0 or newer
+            pd.set_option('display.max_colwidth', None)
+        
+        if self.__data.empty:
+            self.__body = self.__caption + ": Empty Dataframe\n"
+            TableWriter.printv("  ...Dataframe is empty")
+            return
+        else:
+            self.__body = self.__data.to_latex(**self.__to_latex_args)
         pd.set_option('display.max_colwidth', def_max_col)
         
         append_newline = False
@@ -346,9 +357,11 @@ class TableWriter:
             pre_table += "\\label{" + self.__label + "}\n"
             self.__body = pre_table + post_table
             append_newline = True
+        
         if append_newline:
             self.__body = self.__body.replace("\n\\toprule", "\\\\\n\\toprule")
         TableWriter.printv("  ...done")
+        print(self.__body)
 
     def _make_footer(self):
         """
@@ -451,13 +464,14 @@ class TableWriter:
                 command = command + " > /dev/null"
             else:  # windows
                 command = command + " > NUL"
-        
+        print(self.__body)
         TableWriter.printv(command)
         x = os.system(command)
         time.sleep(0.5)
         x = os.system(command)
         time.sleep(0.5)
         x = os.system(command)
+        
         if x != 0:
             raise ValueError("Failed to compile pdf")
         TableWriter.printv("...done")
