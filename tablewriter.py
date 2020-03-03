@@ -361,7 +361,6 @@ class TableWriter:
         if append_newline:
             self.__body = self.__body.replace("\n\\toprule", "\\\\\n\\toprule")
         TableWriter.printv("  ...done")
-        print(self.__body)
 
     def _make_footer(self):
         """
@@ -464,7 +463,6 @@ class TableWriter:
                 command = command + " > /dev/null"
             else:  # windows
                 command = command + " > NUL"
-        print(self.__body)
         TableWriter.printv(command)
         x = os.system(command)
         time.sleep(0.5)
