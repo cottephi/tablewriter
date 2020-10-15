@@ -199,6 +199,5 @@ Report.pdf
 **/*~
 # But keep .gitignore :)
 !/.gitignore
-/publish.sh
-/adutils.tar
-/chien/
+/dask-worker-space
+

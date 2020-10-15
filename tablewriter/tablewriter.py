@@ -7,9 +7,9 @@
 import os
 import time
 import tempfile
-from copy import deepcopy
+import dask.dataframe as dd
 from transparentpath import TransparentPath as Path
-from typing import Any, Dict, TypeVar, Union
+from typing import Any, Dict, TypeVar, Union, Optional
 
 import pandas as pd
 
@@ -19,21 +19,71 @@ LATEX_TEXT_COLOR = r"\textcolor{"
 
 
 class TableWriter(object):
-    """Class used to produce a ready-to-compile .tex file containing a table
-    from a pandas.DataFrame object. Can also compile the .tex to produce a.
+    """Class used to produce a ready-to-compile .tex file containing a table from a pandas or dask DataFrame object.
+    Can also compile the .tex to produce a .pdf.
 
-    .pdf. Handles using additional latex packages. The given DataFrame is
-    copied so any modification of the said DataFrame after instensiation of
-    the TableWriter object has no effect on the TableWriter object,
-    and vice-versa.
+    Handles using additional latex packages through the *packages* argument. The given DataFrame is copied so any
+    modification of the  said DataFrame after instensiation of the TableWriter object has no effect on the
+    TableWriter object, and vice-versa.
+    You should not however modify the DataFrame contained in the TableWriter object, you should just create the
+    TableWriter once you are sure that your DataFrame is ready.
 
-    This class uses pandas.DataFrame.to_latex and adds some more options to
-    produce a .pdf by itself. Any option that must be given to the to_latex
-    method can be given to the TableWriter through the to_latex_args argument.
+    TableWriter uses pandas.DataFrame.to_latex and adds some more options to produce the .tex and the .pdf. Any
+    option that must be given to the to_latex method can be given to TableWriter through the *to_latex_args*
+    argument.
 
-    If you want to modify the DataFrame contained in the TableWriter object,
-    use get_data to get a deepcopy of the DataFrame, modify the DataFrame,
-    then reset it to TableWriter using set_data.
+    Note that the content of the DataFrame will be converted to string. If the DataFrame contains one the following
+    characters ("$", "_", "^", "%", "&"), a '\' is put before them.
+    Mathmode using '$' is handled.
+
+    Examples
+    --------
+
+    >>> from tablewriter import TableWriter  # doctest: +SKIP
+    >>> import pandas as pd  # doctest: +SKIP
+    >>> df = pd.DataFrame(columns=["$x$", "$x^2$"],  # doctest: +SKIP
+    >>>                   index=["$A_{00}$", "$A_{01}$"], data=[[2, 4], [3, 9]])  # doctest: +SKIP
+    >>> table = TableWriter(df, path="ouput")  # doctest: +SKIP
+    >>> table.compile()  # doctest: +SKIP
+
+    TableWriter will use os.system('pdflatex ...') to create the pdf, so you need a working installation of it.
+    In order not to flood the stdout with pdflatex ouput, which is quite verbose, it is silenced by default. If the
+    compilation fails TableWriter will return 'ValueError: Failed to compile pdf'. In that case, you can try to
+    recompile if using
+
+    >>> table.compile(silenced=False)  # doctest: +SKIP
+
+    To have the full output and try to understand what went wrong.
+
+    By default, all files produced by LaTeX are deleted except the .tex and the .pdf. You can change this default
+    behavior :
+
+    >>> # To keep all files :  # doctest: +SKIP
+    >>> table.compile(clean=False)  # doctest: +SKIP
+    >>> # Or on the contrary, to remove also .tex :  # doctest: +SKIP
+    >>> table.compile(clean_tex=True)  # doctest: +SKIP
+
+    You can also do a compilation that will reuse the .tex file if it already exists:
+
+    >>> table.compile(recreate=False)
+
+    Here is a more complete example of table generation :
+
+    >>> from tablewriter import TableWriter  # doctest: +SKIP
+    >>> import pandas as pd  # doctest: +SKIP
+    >>> df = pd.DataFrame(columns=["$x$", "$x^2$"], index=["$A_{00}$", "$A_{01}$"],    # doctest: +SKIP
+    >>>                   data=[["2", "$2^2$"], ["3", "$3^2$"]])  # doctest: +SKIP
+    >>> table = TableWriter(  # doctest: +SKIP
+    >>>     path="path_output",  # doctest: +SKIP
+    >>>     data=df,  # doctest: +SKIP
+    >>>     to_latex_args={"column_format": "lr"},  # doctest: +SKIP
+    >>>     label="tab::example",  # doctest: +SKIP
+    >>>     caption="TableWriter example",  # doctest: +SKIP
+    >>>     packages={"inputenc": {"T1": ""}},  # doctest: +SKIP
+    >>>     hide_numbering=True
+    >>> )  # doctest: +SKIP
+    >>> table.compile()  # doctest: +SKIP
+
     """
 
     # //////////////////
@@ -42,13 +92,14 @@ class TableWriter(object):
 
     def __init__(
         self,
-        data: pd.DataFrame = pd.DataFrame(),
-        to_latex_args: Dict[str, Any] = None,
-        path: Union[str, Path] = None,
-        label: str = None,
-        caption: str = None,
-        packages: Dict[str, Dict[str, str]] = None,
-        read_args: Dict = None,
+        path_output: Union[str, Path],
+        data: Optional[Union[pd.DataFrame, dd.DataFrame]] = None,
+        path_input: Optional[Union[str, Path]] = None,
+        to_latex_args: Optional[Dict[str, Any]] = None,
+        label: Optional[str] = None,
+        caption: Optional[str] = None,
+        packages: Dict[str, Union[None, Dict[str, Union[None, str]]]] = None,
+        read_from_file_args: Dict = None,
         paperwidth: Union[int, float] = 0,
         paperheight: Union[int, float] = 0,
         number: int = 1,
@@ -57,406 +108,188 @@ class TableWriter(object):
         """All parameters are optionnal and can be modified by dedicated
         setters.
 
-        Parameters ---------- data: pd.DataFrame Data to transform to table
-        to_latex_args: Dict[str, Any] Dict of arguments to give to the
-        DataFrame.to_latex method. See valid arguments at
-        https://pandas.pydata.org/pandas-docs/stable/reference/api
-        /pandas.DataFrame.to_latex.html path: Union[str, Path] Path to the
-        .tex file to create label: str Label to use for the table (callable
-        by LateX's \\ref) caption: str Caption to use for the table
-        packages: Dict[str, Dict[str, str]] Packages to use. Keys of first
-        dict are the package names. values are dict of option: value options
-        to use with the package. Can be empty if no options are to be
-        specified. read_args: Dict Dict of argument to pass to the read_csv
-        or read_excel method. Must contain at least \"filepath_or_buffer\" (
-        for a csv) or \"oi\" (for an excel) argument. paperwidth: Union[int,
-        float] Width of the output table in the pdf paperheight: Union[int,
-        float] Height of the page of the output pdf. If table is too long to
-        fit on the page, it will be split in several pages using longtable
-        package. number: int Number LateX should show after \"Table\".
-        Default is 1. hide_numbering: bool Do not show \"Table N\" in the
-        caption.
+        Parameters
+        ----------
+        path_output: Union[str, TransparentPath]
+            Path to the .tex file to create. If the path's suffix is not .tex, it will be changed to .tex.
+        data: Union[pd.DataFrame, dd.DataFrame]
+            Data to transform to table. Can not be specified alongside path_input. (Default value = None)
+        path_input: Union[str, TransparentPath]
+            Path to the file to use to read the DataFrame from. Can not be specified alongside data.
+            (Default value = None)
+        to_latex_args: Dict[str, Any]
+            Dict of arguments to give to the DataFrame.to_latex method. See valid arguments at
+            https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.to_latex.html
+            (Default value = None)
+        label: str
+            Label to use for the table (callable by LateX's \\ref)
+            (Default value = None)
+        caption: str
+            Caption to use for the table
+            (Default value = None)
+        packages: Dict[str, Dict[str, str]]
+            Packages to use. Keys of first dict are the package names. values are dict of option: value options to
+            use with the package. Can be empty if no options are to be specified.
+            (Default value = None)
+        read_from_file_args: Dict
+            Dict of argument to pass to the read method.
+        paperwidth: Union[int, float]
+            Width of the output table in the pdf. If 0, TableWriter will try to guess a default value from table
+            content, but that is not very accurate. (Default value = 0)
+         paperheight: Union[int, float]
+            Height of the page of the output pdf. If table is too long to fit on the page, it will be split in
+            several pages using longtable package. (Default value = 0)
+         number: int
+            Number LateX should show after 'Table'.  (Default value = 1)
+         hide_numbering: bool
+            Do not show 'Table N' in the caption. (Default value = False)
         """
 
-        if read_args is None:
-            read_args = {}
+        if path_output is None:
+            raise ValueError("Must specify an output path.")
+
+        if data is None and path_input is None:
+            raise ValueError("You must give data or path_input argument.")
+        if data is not None and path_input is not None:
+            raise ValueError("You must give data or path_input argument, but not both.")
+
+        if path_input is not None:
+            if read_from_file_args is None:
+                read_from_file_args = {}
+            if not isinstance(path_input, Path):
+                path_input = Path(path_input)
+            data = path_input.read(**read_from_file_args)
+
+        if isinstance(data, dd.DataFrame):
+            data = data.head(len(data.index))
+
+        if data is not None and not isinstance(data, pd.DataFrame):
+            raise ValueError("Data must be a DataFrame")
+
         if packages is None:
             packages = {}
         if to_latex_args is None:
             to_latex_args = {}
 
-        self.__header = ""
-        self.__body = "\\begin{document}\\end{document}"
-        self.__footer = ""
+        self.header = ""
+        self.body = "\\begin{document}\\end{document}"
+        self.footer = ""
 
-        self.__data = data
-        self.__to_latex_args = to_latex_args
-        self.__path = path
-        self.__label = label
-        self.__caption = caption
-        self.__packages = packages
+        self.data = data
+        self.to_latex_args = to_latex_args
+        self.path = path_output
+        self.label = label
+        self.caption = caption
+        self.packages = packages
 
-        self.__paperwidth = paperwidth
-        self.__paperheight = paperheight
-        self.__number = number
-        self.__hide_numbering = hide_numbering
+        self.paperwidth, self.paperheight = None, None
+        self._get_dimensions(paperwidth, paperheight)
+        self.number = number
+        self.hide_numbering = hide_numbering
 
-        self.__special_char = ["_", "^", "%", "&"]
+        self.special_char = ["_", "^", "%", "&"]
 
-        if self.__data is not None and not isinstance(self.__data, pd.DataFrame):
-            raise ValueError("Data must be a DataFrame")
+        if self.caption is not None:
+            self.to_latex_args["caption"] = self.caption
+        if self.label is not None:
+            self.to_latex_args["label"] = self.label
+        if "column_format" not in self.to_latex_args:
+            self.to_latex_args["column_format"] = "|l|" + len(self.data.columns) * "c" + "|"
+        if "escape" not in self.to_latex_args:
+            self.to_latex_args["escape"] = True
+        if "longtable" not in self.to_latex_args:
+            self.to_latex_args["longtable"] = True
 
-        if not isinstance(self.__number, str):
-            self.__number = str(int(self.__number))
-        if self.__path is not None:
-            if not isinstance(self.__path, Path):
-                self.__path = Path(self.__path)
-            if self.__path.suffix != ".tex":
-                self.__path = self.__path.with_suffix(".tex")
+        if "geometry" not in self.packages:
+            self.packages["geometry"] = {}
+        if "marging" not in self.packages["geometry"]:
+            self.packages["geometry"]["margin"] = "0.5cm"
+        if "paperwidth" not in self.packages["geometry"]:
+            self.packages["geometry"]["paperwidth"] = f"{str(self.paperwidth)}cm"
+        if "paperheight" not in self.packages["geometry"]:
+            self.packages["geometry"]["paperheight"] = f"{str(self.paperheight)}cm"
+        if "caption" not in self.packages:
+            self.packages["caption"] = {}
+        if "xcolor" not in self.packages:
+            self.packages["xcolor"] = {"dvipsnames": None}
+        if "booktabs" not in self.packages:
+            self.packages["booktabs"] = {}
+        if "inputenc" not in self.packages:
+            self.packages["inputenc"] = {"utf8": None}
+        if "longtable" not in self.packages and self.to_latex_args["longtable"] is True:
+            self.packages["longtable"] = {}
 
-        if len(read_args) > 0:
-            self.load_from_file(read_args)
+        if isinstance(self.number, str):
+            self.number = int(self.number)
+        if self.number > 0:
+            self.number -= 1
+        self.number = str(int(self.number))
 
-    @property
-    def header(self):
-        return self.__header
-
-    @property
-    def body(self):
-        return self.__body
-
-    @property
-    def footer(self):
-        return self.__footer
-
-    def load_from_file(self, read_args: Dict) -> None:
-        """Loads a table from a .csv or a .excel file.
-
-        Parameters
-        ----------
-        read_args: Dict
-            Arguments to pass to the read_csv or read_excel method.
-
-        Returns
-        -------
-        None
-        """
-
-        if "path" in read_args:
-            path = Path(read_args["path"])
-            if path.suffix == ".csv":
-                read_args["filepath_or_buffer"] = path
-            elif path.suffix == ".xslx":
-                read_args["io"] = path
-            else:
-                raise ValueError("Unkown extension " + path.suffix)
-            del read_args["path"]
-
-        if "filepath_or_buffer" in read_args:
-            path = read_args["filepath_or_buffer"]
-            if not isinstance(path, Path):
-                path = Path(path)
-            if not path.is_file():
-                raise ValueError(str(path) + " file not found.")
-            self.__data = pd.read_csv(**read_args)
-        elif "io" in read_args:
-            path = read_args["io"]
-            if not isinstance(path, Path):
-                path = Path(path)
-            if not path.is_file():
-                raise ValueError(str(path) + " file not found.")
-            self.__data = pd.read_excel(**read_args)
-        else:
-            raise ValueError('"filepath_or_buffer" (for a csv) or "io"' " (for an excel) must be in read_args")
-
-    # /////////////
-    # // Setters //
-    # /////////////
-
-    def set_data(self, data: pd.DataFrame) -> None:
-        """Set content of the table.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-
-        Returns
-        -------
-        None
-        """
-        if not isinstance(self.__data, pd.DataFrame):
-            raise ValueError('Argument "data" must be a pandas.DataFrame object.')
-        self.__data = data
-
-    def set_to_latex_args(self, args: Dict[str, Any]) -> None:
-        """Set content of to_latex_args.
-
-        Parameters
-        ----------
-        args : Dict[str, Any]
-
-        Returns
-        -------
-        None
-        """
-        self.__to_latex_args = args
-
-    def set_path(self, path: Union[str, Path]) -> None:
-        """Set output file path. Will change extension to .tex.
-
-        Parameters
-        ----------
-        path : Union[str, Path]
-
-        Returns
-        -------
-        None
-        """
-        if not isinstance(path, Path):
-            path = Path(path)
-        if path.suffix != ".tex":
-            path = path.with_suffix(".tex")
-        self.__path = path
-
-    def set_label(self, label: str) -> None:
-        """Set the table label.
-
-        Parameters
-        ----------
-        label : str
-
-        Returns
-        -------
-        None
-        """
-        self.__label = label
-
-    def set_caption(self, caption: str) -> None:
-        """Set the table caption.
-
-        Parameters
-        ----------
-        caption : str
-
-        Returns
-        -------
-        None
-        """
-        self.__caption = caption
-
-    def set_packages(self, packages: Dict[str, Dict[str, str]]) -> None:
-        """Set the dict of packages. Keys of the outer dict are the packages
-        names. the outer dict values are innter dicts. Keys of those inner
-        dicts are the package options names, and their inner values are the
-        option values if any (None if option does not need a value)
-
-        Parameters
-        ----------
-        packages : Dict[str, Dict[str, str]]
-
-        Returns
-        -------
-        None
-        """
-        self.__packages = packages
-
-    def set_paperwidth(self, pw: Union[int, float]) -> None:
-        """Set the paper width.
-
-        Parameters
-        ----------
-        pw : Union[int, float]
-
-        Returns
-        -------
-        None
-        """
-        self.__paperwidth = pw
-
-    def set_paperheight(self, ph: Union[int, float]) -> None:
-        """Set the paper height.
-
-        Parameters
-        ----------
-        ph : Union[int, float]
-
-        Returns
-        -------
-        None
-        """
-        self.__paperheight = ph
-
-    def set_number(self, n: Union[str, int]) -> None:
-        """Set the table number (Will display "Table n:" before caption).
-
-        Parameters
-        ----------
-        n : Union[str, int]
-
-        Returns
-        -------
-        None
-        """
-        self.__number = n
-        if not isinstance(self.__number, str):
-            self.__number = str(int(self.__number))
-
-    def set_hide_numbering(self, hn: bool) -> None:
-        """Whether to hide the table numbering or not.
-
-        Parameters
-        ----------
-        hn : bool
-
-        Returns
-        -------
-        None
-        """
-        self.__hide_numbering = hn
-
-    def add_to_latex_arg(self, arg: str, value: Any) -> None:
-        """Adds a key (argument, value) to the list of args to pass to
-        pd.to_latex.
-
-        Parameters
-        ----------
-        arg: str
-        value: Any
-
-        Returns
-        -------
-        """
-        self.__to_latex_args[arg] = value
-
-    def add_package(self, package: str, options: Dict[str, str]) -> None:
-        """Adds a key (argument, {options:values}) to the list of packages.
-
-        Parameters
-        ----------
-        package: str
-        options: Dict[str, str]
-
-        Returns
-        -------
-        """
-        self.__packages[package] = options
-
-    # /////////////
-    # // Getters //
-    # /////////////
-
-    @property
-    def data(self) -> pd.DataFrame:
-        return deepcopy(self.__data)
-
-    @property
-    def path(self) -> Path:
-        return self.__path
-
-    @property
-    def label(self) -> str:
-        return self.__label
-
-    @property
-    def caption(self) -> str:
-        return self.__caption
-
-    @property
-    def to_latex_args(self) -> Dict[str, Any]:
-        return deepcopy(self.__to_latex_args)
-
-    @property
-    def packages(self) -> Dict[str, Dict[str, str]]:
-        return deepcopy(self.__packages)
-
-    @property
-    def paperwidth(self) -> int:
-        return self.__paperwidth
-
-    @property
-    def paperheight(self) -> int:
-        return self.__paperheight
-
-    @property
-    def number(self) -> str:
-        return self.__number
-
-    @property
-    def hide_numbering(self) -> bool:
-        return self.__hide_numbering
+        if self.path is not None:
+            if not isinstance(self.path, Path):
+                self.path = Path(self.path)
+            if self.path.suffix != ".tex":
+                self.path = self.path.with_suffix(".tex")
 
     # ////////////
     # // Makers //
     # ////////////
 
+    def _get_dimensions(self, paperwidth, paperheight):
+
+        self.paperwidth = paperwidth
+        self.paperheight = paperheight
+
+        if self.paperwidth != 0 and self.paperheight != 0:
+            return
+
+        # Try to guess a kind of optimal width for the table
+        if not self.data.empty:
+            charswidth = (
+                len("".join(list(self.data.columns.dropna().astype(str))))
+                + max([len(ind) for ind in self.data.index.dropna().astype(str)])
+            ) * 0.178
+            self.paperwidth = charswidth + 0.8 * (len(self.data.columns)) + 1
+            if self.paperwidth < 9:
+                self.paperwidth = 9
+        # Same for height
+        if not self.data.empty:
+            self.paperheight = 3.5 + (len(self.data.index)) * 0.45
+            if self.paperheight < 4:
+                self.paperheight = 4
+            if self.paperheight > 24:
+                # Limit page height to A4's 24 cm
+                self.paperheight = 24
+                self.to_latex_args["longtable"] = True
+            else:
+                self.to_latex_args["longtable"] = False
+
     def _make_header(self) -> None:
         """Makes the header of the tex file."""
 
-        # Try to guess a kind of optimal width for the table
-        if self.__paperwidth == 0 and not self.__data.empty:
-            charswidth = (
-                len("".join(list(self.__data.columns.dropna().astype(str))))
-                + max([len(ind) for ind in self.__data.index.dropna().astype(str)])
-            ) * 0.178
-            self.__paperwidth = charswidth + 0.8 * (len(self.__data.columns)) + 1
-            if self.__paperwidth < 9:
-                self.__paperwidth = 9
-        # Same for height
-        if self.__paperheight == 0 and not self.__data.empty:
-            self.__paperheight = 3.5 + (len(self.__data.index)) * 0.45
-            if self.__paperheight < 4:
-                self.__paperheight = 4
-            if self.__paperheight > 24:
-                # Limit page height to A4's 24 cm
-                self.__paperheight = 24
-
-        self.__header = "\\documentclass{article}\n"
-        self.__header += (
-            "\\usepackage[margin=0.5cm, paperwidth="
-            + str(self.__paperwidth)
-            + "cm, paperheight="
-            + str(self.__paperheight)
-            + "cm]{geometry}\n"
-        )
-        self.__header += "\\usepackage{caption}\n"
-
-        lt = True
-        if "longtable" in self.__to_latex_args:
-            lt = self.__to_latex_args["longtable"]
-        else:
-            self.__to_latex_args["longtable"] = True
-        if lt:
-            self.__header += "\\usepackage{longtable}\n"
-
-        self.__header += (
-            "\\usepackage[dvipsnames]{xcolor}\n" + "\\usepackage{booktabs}\n" + "\\usepackage[utf8]{inputenc}\n"
-        )
+        self.header = "\\documentclass{article}\n"
 
         # Add specified packages if any
-        for p in self.__packages:
-            if len(self.__packages[p]) == 0:
-                self.__header += "\\usepackage{" + p + "}\n"
+        for p in self.packages:
+            if len(self.packages[p]) == 0:
+                self.header += p.join(["\\usepackage{", "}\n"])
             else:
-                self.__header += "\\usepackage["
-                for o in self.__packages[p]:
-                    if self.__packages[p][o] is None:
-                        self.__header += o + ","
+                self.header += "\\usepackage["
+                for o in self.packages[p]:
+                    if self.packages[p][o] is None:
+                        self.header += o + ","
 
                     else:
-                        self.__header += o + "=" + self.__packages[p][o] + ","
-                self.__header = self.__header[:-1] + "]{" + p + "}\n"
-        self.__header += "\\begin{document}\n\\nonstopmode\n\\setcounter{table}{" + self.__number + "}\n"
+                        self.header += o + "=" + self.packages[p][o] + ","
+                self.header = self.header[:-1] + "]{" + p + "}\n"
+        self.header += "\\begin{document}\n\\nonstopmode\n\\setcounter{table}{" + self.number + "}\n"
 
     def _make_body(self) -> None:
         """Makes the main body of tex file."""
 
-        if "column_format" not in self.__to_latex_args:
-            self.__to_latex_args["column_format"] = "|l|" + len(self.__data.columns) * "c" + "|"
-
         # Needed if you do not want long names to be truncated with "..."
         # by pandas, giving bullshit results in the .tex file
         def_max_col = pd.get_option("display.max_colwidth")
-        # TODO(qlieumont): pandas version
         if pd.__version__.split(".")[0] == "0":
             # pandas is older than 1.0.0
             pd.set_option("display.max_colwidth", -1)
@@ -464,40 +297,24 @@ class TableWriter(object):
             # pandas is 1.0.0 or newer
             pd.set_option("display.max_colwidth", None)
 
-        if self.__data.empty:
-            self.__body = self.__caption + ": Empty Dataframe\n"
+        if self.data.empty:
+            self.body = self.caption + ": Empty Dataframe\n"
             return
         else:
-            self.__body = self.__data.to_latex(**self.__to_latex_args)
+            self.body = self.data.to_latex(**self.to_latex_args)
         pd.set_option("display.max_colwidth", def_max_col)
 
-        append_newline = False
-        if self.__caption is not None:
-            in_table = self.__body.find("\\toprule")
-            pre_table = self.__body[:in_table]
-            post_table = self.__body[in_table:]
-            if not self.__hide_numbering:
-                pre_table += "\\caption{" + self.__caption + "}\n"
-            else:
-                pre_table += "\\caption*{" + self.__caption + "}\n"
-            self.__body = pre_table + post_table
-            append_newline = True
+        if self.caption is not None and self.hide_numbering:
+            self.body = self.body.replace("\\caption{", "\\caption*{")
 
-        if self.__label is not None:
-            in_table = self.__body.find("\\toprule")
-            pre_table = self.__body[:in_table]
-            post_table = self.__body[in_table:]
-            pre_table += "\\label{" + self.__label + "}\n"
-            self.__body = pre_table + post_table
-            append_newline = True
-
-        if append_newline:
-            self.__body = self.__body.replace("\n\\toprule", "\\\\\n\\toprule")
+        if self.caption is not None or self.label is not None:
+            self.body = self.body.replace("\n\\toprule", "\\\\\n\\toprule")
+        self.body = self.body.replace("\\\\\\\\", "\\\\")
 
     def _make_footer(self) -> None:
         """Makes the footer of tex file."""
 
-        self.__footer = "\\end{document}\n"
+        self.footer = "\\end{document}\n"
 
     def _escape_special_chars(self, s: T) -> T:
         """Will add '\\' before special characters outside of mathmode to given
@@ -526,7 +343,7 @@ class TableWriter(object):
                 s2 += c
                 previous_c = c
                 continue
-            if c in self.__special_char and not previous_c == "\\":
+            if c in self.special_char and not previous_c == "\\":
                 c = "\\" + c
             previous_c = c
             s2 += c
@@ -538,11 +355,11 @@ class TableWriter(object):
 
     def build(self):
         """build header body and footer."""
-        if "escape" in self.__to_latex_args and self.__to_latex_args["escape"]:
-            self.__data.index = [self._escape_special_chars(s) for s in self.__data.index]
-            self.__data.columns = [self._escape_special_chars(s) for s in self.__data.columns]
-            self.__data = self.__data.applymap(self._escape_special_chars)
-        self.__to_latex_args["escape"] = False
+        if "escape" in self.to_latex_args and self.to_latex_args["escape"]:
+            self.data.index = [self._escape_special_chars(s) for s in self.data.index]
+            self.data.columns = [self._escape_special_chars(s) for s in self.data.columns]
+            self.data = self.data.applymap(self._escape_special_chars)
+        self.to_latex_args["escape"] = False
         self._make_header()
         self._make_body()
         self._make_footer()
@@ -550,16 +367,13 @@ class TableWriter(object):
     def create_tex_file(self) -> None:
         """Creates the tex file."""
 
-        if self.__path is None:
-            raise ValueError("Must specify a file path.")
-
-        with open(self.__path, "w") as outfile:
+        with open(self.path, "w") as outfile:
             # escape argument only works on column names. We need to apply
             # it on entier DataFrame, so do that then set it to False
             self.build()
-            outfile.write(self.__header)
-            outfile.write(self.__body)
-            outfile.write(self.__footer)
+            outfile.write(self.header)
+            outfile.write(self.body)
+            outfile.write(self.footer)
 
     # noinspection StandardShellInjection
     def compile(
@@ -567,31 +381,35 @@ class TableWriter(object):
     ) -> None:
         """Compile the pdf.
 
-        Parameters ---------- silenced: bool Will or will not print on
-        terminal the pdflatex output. Default True. recreate: bool If False
-        and .tex file exists, compile from it. If True, recreate the .tex
-        file first. clean: bool Removes all files created by the compilation
-        which are not the .tex or the .pdf file. clean_tex: bool Also
-        removes the .tex file, leaving only the .pdf.
+        Parameters
+        ----------
+        silenced: bool
+            Will or will not print on terminal the pdflatex output. (Default value = True)
+        recreate: bool
+            If False and .tex file exists, compile from it. If True, recreate the .tex file first.
+        clean: bool
+            Removes all files created by the compilation which are not the .tex or the .pdf file.
+        clean_tex: bool
+            Also removes the .tex file, leaving only the .pdf.
 
         Returns
         -------
         None
         """
 
-        if self.__path is None:
+        if self.path is None:
             raise ValueError("Must specify a file path.")
-        if recreate or not self.__path.is_file():
+        if recreate or not self.path.is_file():
             self.create_tex_file()
 
-        if not self.__path.is_file():
-            raise ValueError(f"Tex file {self.__path} not found.")
+        if not self.path.is_file():
+            raise ValueError(f"Tex file {self.path} not found.")
 
-        path_to_compile = self.__path
-        if self.__path.fs_kind == "gcs":
+        path_to_compile = self.path
+        if self.path.fs_kind == "gcs":
             path_to_compile = tempfile.NamedTemporaryFile(delete=False, suffix=".tex")
             path_to_compile.close()
-            self.__path.get(path_to_compile.name)
+            self.path.get(path_to_compile.name)
             path_to_compile = Path(path_to_compile.name, fs="local")
 
         command = "pdflatex -synctex=1 -interaction=nonstopmode "
@@ -611,9 +429,9 @@ class TableWriter(object):
         time.sleep(0.5)
         x3 = os.system(command)
 
-        if self.__path.fs_kind == "gcs":
+        if self.path.fs_kind == "gcs":
             for path in path_to_compile.with_suffix("").glob("*"):
-                path_gcs = self.__path.with_suffix(path.suffix)
+                path_gcs = self.path.with_suffix(path.suffix)
                 path.put(path_gcs)
                 path.rm()
 
@@ -639,7 +457,7 @@ class TableWriter(object):
         to_keep = [".pdf", ".csv", ".excel"]
         if not clean_tex:
             to_keep.append(".tex")
-        files = self.__path.with_suffix("").glob("*")
+        files = self.path.with_suffix("").glob("*")
         for f in files:
             if f.suffix not in to_keep:
                 f.rm()
