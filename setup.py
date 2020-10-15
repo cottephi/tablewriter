@@ -66,11 +66,23 @@ if __name__ == "__main__":
     setup(
         name="tablewriter",
         version=version,
-        packages=find_packages(),
+        author="Philippe COTTE",
+        author_email="cottephi@gmail.com",
         include_package_data=True,
+        description="A wrapper around pandas's DataFrame.to_latex to compile the latex to a pdf.",
         long_description=long_description,
+        long_description_content_type="text/markdown",
+        url="https://github.com/cottephi/tablewriter",
+        packages=find_packages(),
         install_requires=requirements,
         package_data={"": ["*", ".*"]},
+        classifiers=[
+            "Programming Language :: Python :: 3",
+            "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+            "Operating System :: OS Independent",
+            "Development Status :: 5 - Production/Stable"
+        ],
+        python_requires='>=3.6',
     )
 
     if Path("apt-requirements.txt").is_file():
