@@ -240,8 +240,11 @@ class TableWriter(object):
 
     @path.setter
     def path(self, apath: Union[str, Path, None]):
-        if type(apath) != Path and apath is not None:
-            apath = Path(apath)
+        if apath is not None:
+            if not isinstance(apath, Path):
+                apath = Path(apath)
+            if apath.suffix != ".tex":
+                apath = apath.with_suffix(".tex")
         self.__path = apath
 
     @path_output.setter
