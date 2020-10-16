@@ -240,7 +240,6 @@ class TableWriter(object):
 
     @path.setter
     def path(self, apath: Union[str, Path, None]):
-        print("coucou")
         if type(apath) != Path and apath is not None:
             apath = Path(apath)
         self.__path = apath
