@@ -92,7 +92,7 @@ class TableWriter(object):
 
     def __init__(
         self,
-        path_output: Union[str, Path],
+        path_output: Optional[Union[str, Path]] = None,
         data: Optional[Union[pd.DataFrame, dd.DataFrame]] = None,
         path_input: Optional[Union[str, Path]] = None,
         to_latex_args: Optional[Dict[str, Any]] = None,
@@ -112,6 +112,8 @@ class TableWriter(object):
         ----------
         path_output: Union[str, TransparentPath]
             Path to the .tex file to create. If the path's suffix is not .tex, it will be changed to .tex.
+            You can set this path later using mytable.path = ... or mytable.path_output = ...
+            (Default value = None)
         data: Union[pd.DataFrame, dd.DataFrame]
             Data to transform to table. Can not be specified alongside path_input. (Default value = None)
         path_input: Union[str, TransparentPath]
@@ -145,9 +147,6 @@ class TableWriter(object):
             Do not show 'Table N' in the caption. (Default value = False)
         """
 
-        if path_output is None:
-            raise ValueError("Must specify an output path.")
-
         if data is None and path_input is None:
             raise ValueError("You must give data or path_input argument.")
         if data is not None and path_input is not None:
@@ -177,7 +176,7 @@ class TableWriter(object):
 
         self.data = data
         self.to_latex_args = to_latex_args
-        self.path = path_output
+        self.__path = path_output
         self.label = label
         self.caption = caption
         self.packages = packages
@@ -225,11 +224,30 @@ class TableWriter(object):
             self.number -= 1
         self.number = str(int(self.number))
 
-        if self.path is not None:
-            if not isinstance(self.path, Path):
-                self.path = Path(self.path)
-            if self.path.suffix != ".tex":
-                self.path = self.path.with_suffix(".tex")
+        if self.__path is not None:
+            if not isinstance(self.__path, Path):
+                self.__path = Path(self.__path)
+            if self.__path.suffix != ".tex":
+                self.__path = self.__path.with_suffix(".tex")
+
+    @property
+    def path(self) -> Path:
+        return self.__path
+
+    @property
+    def path_output(self) -> Path:
+        return self.__path
+
+    @path.setter
+    def path(self, apath: Union[str, Path, None]):
+        print("coucou")
+        if type(apath) != Path and apath is not None:
+            apath = Path(apath)
+        self.__path = apath
+
+    @path_output.setter
+    def path_output(self, apath: Union[str, Path, None]):
+        self.path = apath
 
     # ////////////
     # // Makers //
@@ -367,7 +385,7 @@ class TableWriter(object):
     def create_tex_file(self) -> None:
         """Creates the tex file."""
 
-        with open(self.path, "w") as outfile:
+        with open(self.__path, "w") as outfile:
             # escape argument only works on column names. We need to apply
             # it on entier DataFrame, so do that then set it to False
             self.build()
@@ -397,19 +415,19 @@ class TableWriter(object):
         None
         """
 
-        if self.path is None:
+        if self.__path is None:
             raise ValueError("Must specify a file path.")
-        if recreate or not self.path.is_file():
+        if recreate or not self.__path.is_file():
             self.create_tex_file()
 
-        if not self.path.is_file():
-            raise ValueError(f"Tex file {self.path} not found.")
+        if not self.__path.is_file():
+            raise ValueError(f"Tex file {self.__path} not found.")
 
-        path_to_compile = self.path
-        if self.path.fs_kind == "gcs":
+        path_to_compile = self.__path
+        if self.__path.fs_kind == "gcs":
             path_to_compile = tempfile.NamedTemporaryFile(delete=False, suffix=".tex")
             path_to_compile.close()
-            self.path.get(path_to_compile.name)
+            self.__path.get(path_to_compile.name)
             path_to_compile = Path(path_to_compile.name, fs="local")
 
         command = "pdflatex -synctex=1 -interaction=nonstopmode "
@@ -429,9 +447,9 @@ class TableWriter(object):
         time.sleep(0.5)
         x3 = os.system(command)
 
-        if self.path.fs_kind == "gcs":
+        if self.__path.fs_kind == "gcs":
             for path in path_to_compile.with_suffix("").glob("*"):
-                path_gcs = self.path.with_suffix(path.suffix)
+                path_gcs = self.__path.with_suffix(path.suffix)
                 path.put(path_gcs)
                 path.rm()
 
@@ -457,7 +475,7 @@ class TableWriter(object):
         to_keep = [".pdf", ".csv", ".excel"]
         if not clean_tex:
             to_keep.append(".tex")
-        files = self.path.with_suffix("").glob("*")
+        files = self.__path.with_suffix("").glob("*")
         for f in files:
             if f.suffix not in to_keep:
                 f.rm()
