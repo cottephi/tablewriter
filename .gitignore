@@ -193,4 +193,6 @@ jlog
 docsbuild/build/
 docsbuild/source/_static
 docsbuild/source/_templates
+docsbuild/source/changelog.rst
+docsbuild/source/tablewriter.rst
 docs
