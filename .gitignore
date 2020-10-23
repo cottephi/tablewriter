@@ -184,20 +184,10 @@ fabric.properties
 jerr
 jlog
 
-# Sphynx docs / build files
-docs/
-source/
-!source/*.py
-!source/index.rst
-
-# LaTeX report and build files
-Report.pdf
-./build*/
-
 # All files with "ignore" in their names are test files and are ignored
 *ignore*
 **/*~
 # But keep .gitignore :)
 !/.gitignore
 /dask-worker-space
-
+!/docsbuild
