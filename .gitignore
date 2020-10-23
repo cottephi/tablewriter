@@ -190,4 +190,7 @@ jlog
 # But keep .gitignore :)
 !/.gitignore
 /dask-worker-space
-!/docsbuild
+docsbuild/build/
+docsbuild/source/_static
+docsbuild/source/_templates
+docs
