@@ -1,16 +1,13 @@
 tablewriter package
-===================
+=======================
 
-Submodules
-----------
+Subpackages
+-----------
 
-tablewriter.tablewriter module
-------------------------------
+.. toctree::
+   :maxdepth: 4
 
-.. automodule:: tablewriter.tablewriter
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   tablewriter
 
 Module contents
 ---------------
