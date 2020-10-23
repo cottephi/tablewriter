@@ -1,3 +1,9 @@
+---
+permalink: /docs/index.html
+---
+
+**The complete documentation is available at https://cottephi.github.io/tablewriter/**
+
 # TableWriter
 
 ## Instalation
