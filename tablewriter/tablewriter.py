@@ -450,7 +450,8 @@ class TableWriter(object):
         x3 = os.system(command)
 
         if self.__path.fs_kind == "gcs":
-            for path in path_to_compile.with_suffix("").glob("*"):
+            glob_in = path_to_compile.parent
+            for path in glob_in.glob(f"{path_to_compile.stem}*"):
                 path_gcs = self.__path.with_suffix(path.suffix)
                 path.put(path_gcs)
                 path.rm()
@@ -477,7 +478,7 @@ class TableWriter(object):
         to_keep = [".pdf", ".csv", ".excel"]
         if not clean_tex:
             to_keep.append(".tex")
-        files = self.__path.with_suffix("").glob("*")
+        files = self.__path.parent.glob(f"{self.__path.stem}*")
         for f in files:
             if f.suffix not in to_keep:
                 f.rm()
