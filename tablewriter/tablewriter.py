@@ -451,11 +451,9 @@ class TableWriter(object):
 
         if self.__path.fs_kind == "gcs":
             glob_in = path_to_compile.parent
-            print("path_to_compile", path_to_compile)
             for path in glob_in.glob(f"{path_to_compile.stem}*"):
                 path_gcs = self.__path.with_suffix(path.suffix)
-                print("  path", path)
-                print("  path_gcs", path_gcs)
+                raise ValueError(f"path to compile {path_to_compile}\n  path_gcs {path_gcs}\  path {path}")
                 path.put(path_gcs)
                 path.rm()
 
