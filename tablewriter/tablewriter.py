@@ -453,13 +453,6 @@ class TableWriter(object):
             glob_in = path_to_compile.parent
             for path in glob_in.glob(f"{path_to_compile.stem}*"):
                 path_gcs = self.__path.with_suffix(path.suffix)
-                s = f"path to compile {path_to_compile}\n  Exists:{path_to_compile.is_file()}\n"
-                s = f"{s}ls of parent: {list(path_to_compile.parent.ls())}\n"
-                s = f"{s}path gcs {path_gcs}\n Exists:{path_gcs.is_file()}\n"
-                s = f"{s}ls of parent: {list(path_gcs.parent.ls())}\n"
-                s = f"{s}path {path}\n Exists:{path.is_file()}\n"
-                s = f"{s}ls of parent: {list(path.parent.ls())}\n"
-                raise ValueError(s)
                 path.put(path_gcs)
                 path.rm()
 
