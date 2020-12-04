@@ -426,7 +426,7 @@ class TableWriter(object):
             raise ValueError(f"Tex file {self.__path} not found.")
 
         path_to_compile = self.__path
-        if self.__path.fs_kind == "gcs":
+        if "gcs" in self.__path.fs_kind:
             path_to_compile = tempfile.NamedTemporaryFile(delete=False, suffix=".tex")
             path_to_compile.close()
             self.__path.get(path_to_compile.name)
