@@ -449,7 +449,7 @@ class TableWriter(object):
         time.sleep(0.5)
         x3 = os.system(command)
 
-        if self.__path.fs_kind == "gcs":
+        if "gcs" in self.__path.fs_kind:
             glob_in = path_to_compile.parent
             for path in glob_in.glob(f"{path_to_compile.stem}*"):
                 path_gcs = self.__path.with_suffix(path.suffix)

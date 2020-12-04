@@ -14,7 +14,7 @@ def test_tablewriter_from_dataframe():
         caption="TableWriter example",
         hide_numbering=True,
     )
-    table.compile()
+    table.compile(silenced=False)
     assert Path("tests/data/ouput.tex").is_file()
     assert Path("tests/data/ouput.pdf").is_file()
     Path("tests/data/ouput.pdf").rm()
@@ -30,7 +30,7 @@ def test_tablewriter_from_file():
         read_from_file_args={"index_col": 0},
         number=3,
     )
-    table.compile()
+    table.compile(silenced=False)
     assert Path("tests/data/ouput_from_file.tex").is_file()
     assert Path("tests/data/ouput_from_file.pdf").is_file()
     Path("tests/data/ouput_from_file.pdf").rm()
