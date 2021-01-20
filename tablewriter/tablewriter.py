@@ -168,12 +168,11 @@ class TableWriter(object):
                 data = pd.read_parquet(path_input, **read_from_file_args)
             else:
                 raise ValueError(f"Can not read file {path_input} : unsupported extension.")
-            print(path_input)
 
         if "dask.dataframe" in str(type(data)):
             data = data.head(len(data.index))
 
-        if not isinstance(data, pd.DataFrame):
+        if data is not None and not isinstance(data, pd.DataFrame):
             raise ValueError(f"Data must be a DataFrame, got {type(data)}")
 
         if packages is None:
@@ -243,8 +242,30 @@ class TableWriter(object):
 
     # noinspection PyUnresolvedReferences
     @property
-    def path(self) -> Union[str, Path, "TransparentPath"]:
+    def path(self) -> Union[Path, "TransparentPath"]:
         return self.__path
+
+    # noinspection PyUnresolvedReferences
+    @property
+    def path_output(self) -> Union[Path, "TransparentPath"]:
+        return self.__path
+
+    # noinspection PyUnresolvedReferences
+    @path.setter
+    def path(self, apath: Union[str, Path, "TransparentPath", None]):
+        if type(apath) == str:
+            apath = Path(apath)
+        if apath is not None:
+            if not isinstance(apath, Path):
+                apath = Path(apath)
+            if apath.suffix != ".tex":
+                apath = apath.with_suffix(".tex")
+        self.__path = apath
+
+    # noinspection PyUnresolvedReferences
+    @path_output.setter
+    def path_output(self, apath: Union[str, Path, "TransparentPath", None]):
+        self.path = apath
 
     # ////////////
     # // Makers //
@@ -421,9 +442,11 @@ class TableWriter(object):
             raise ValueError(f"Tex file {self.__path} not found.")
 
         path_to_compile = self.__path
+        # noinspection PyUnresolvedReferences
         if "fs_kind" in dir(self.__path) and "gcs" in self.__path.fs_kind:  # Using TransparentPath on gcs
             path_to_compile = tempfile.NamedTemporaryFile(delete=False, suffix=".tex")
             path_to_compile.close()
+            # noinspection PyUnresolvedReferences
             self.__path.get(path_to_compile.name)
             path_to_compile = Path(path_to_compile.name, fs="local")
 
@@ -444,11 +467,14 @@ class TableWriter(object):
         time.sleep(0.5)
         x3 = os.system(command)
 
+        # noinspection PyUnresolvedReferences
         if "fs_kind" in dir(self.__path) and "gcs" in self.__path.fs_kind:
             glob_in = path_to_compile.parent
             for path in glob_in.glob(f"{path_to_compile.stem}*"):
                 path_gcs = self.__path.with_suffix(path.suffix)
+                # noinspection PyUnresolvedReferences
                 path.put(path_gcs)
+                # noinspection PyUnresolvedReferences
                 path.rm()
 
         if x1 != 0 or x2 != 0 or x3 != 0:
@@ -479,6 +505,7 @@ class TableWriter(object):
                 if f.is_file():
                     f.unlink()
                 elif "rm" in dir(f):
+                    # noinspection PyUnresolvedReferences
                     f.rm()
                 else:
                     shutil.rmtree(f)
