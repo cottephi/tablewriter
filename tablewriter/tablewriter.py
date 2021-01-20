@@ -5,10 +5,10 @@
 """
 
 import os
+import shutil
 import time
 import tempfile
-import dask.dataframe as dd
-from transparentpath import TransparentPath as Path
+from pathlib import Path
 from typing import Any, Dict, TypeVar, Union, Optional
 
 import pandas as pd
@@ -40,6 +40,7 @@ class TableWriter(object):
     --------
 
     >>> from tablewriter import TableWriter  # doctest: +SKIP
+    >>> # noinspection PyShadowingNames
     >>> import pandas as pd  # doctest: +SKIP
     >>> df = pd.DataFrame(columns=["$x$", "$x^2$"],  # doctest: +SKIP
     >>>                   index=["$A_{00}$", "$A_{01}$"], data=[[2, 4], [3, 9]])  # doctest: +SKIP
@@ -70,6 +71,7 @@ class TableWriter(object):
     Here is a more complete example of table generation :
 
     >>> from tablewriter import TableWriter  # doctest: +SKIP
+    >>> # noinspection PyShadowingNames
     >>> import pandas as pd  # doctest: +SKIP
     >>> df = pd.DataFrame(columns=["$x$", "$x^2$"], index=["$A_{00}$", "$A_{01}$"],    # doctest: +SKIP
     >>>                   data=[["2", "$2^2$"], ["3", "$3^2$"]])  # doctest: +SKIP
@@ -90,11 +92,12 @@ class TableWriter(object):
     # // Initialisers //
     # //////////////////
 
+    # noinspection PyUnresolvedReferences
     def __init__(
         self,
-        path_output: Optional[Union[str, Path]] = None,
-        data: Optional[Union[pd.DataFrame, dd.DataFrame]] = None,
-        path_input: Optional[Union[str, Path]] = None,
+        path_output: Optional[Union[str, Path, "TransparentPath"]] = None,
+        data: Optional[Union[pd.DataFrame, "dask.dataframe.DataFrame"]] = None,
+        path_input: Optional[Union[str, Path, "TransparentPath"]] = None,
         to_latex_args: Optional[Dict[str, Any]] = None,
         label: Optional[str] = None,
         caption: Optional[str] = None,
@@ -110,13 +113,13 @@ class TableWriter(object):
 
         Parameters
         ----------
-        path_output: Union[str, TransparentPath]
+        path_output: Union[str, Path, TransparentPath]
             Path to the .tex file to create. If the path's suffix is not .tex, it will be changed to .tex.
             You can set this path later using mytable.path = ... or mytable.path_output = ...
             (Default value = None)
-        data: Union[pd.DataFrame, dd.DataFrame]
+        data: Union[pd.DataFrame, dask.dataframe.DataFrame]
             Data to transform to table. Can not be specified alongside path_input. (Default value = None)
-        path_input: Union[str, TransparentPath]
+        path_input: Union[str, Path, TransparentPath]
             Path to the file to use to read the DataFrame from. Can not be specified alongside data.
             (Default value = None)
         to_latex_args: Dict[str, Any]
@@ -155,15 +158,23 @@ class TableWriter(object):
         if path_input is not None:
             if read_from_file_args is None:
                 read_from_file_args = {}
-            if not isinstance(path_input, Path):
+            if type(path_input) == str:  # Do not use isinstance because isinstance(TransparentPath, str) is True
                 path_input = Path(path_input)
-            data = path_input.read(**read_from_file_args)
+            if "read" in dir(path_input):
+                data = path_input.read(**read_from_file_args)
+            elif path_input.suffix == ".csv":
+                data = pd.read_csv(path_input, **read_from_file_args)
+            elif path_input.suffix == ".parquet":
+                data = pd.read_parquet(path_input, **read_from_file_args)
+            else:
+                raise ValueError(f"Can not read file {path_input} : unsupported extension.")
+            print(path_input)
 
-        if isinstance(data, dd.DataFrame):
+        if "dask.dataframe" in str(type(data)):
             data = data.head(len(data.index))
 
-        if data is not None and not isinstance(data, pd.DataFrame):
-            raise ValueError("Data must be a DataFrame")
+        if not isinstance(data, pd.DataFrame):
+            raise ValueError(f"Data must be a DataFrame, got {type(data)}")
 
         if packages is None:
             packages = {}
@@ -225,31 +236,15 @@ class TableWriter(object):
         self.number = str(int(self.number))
 
         if self.__path is not None:
-            if not isinstance(self.__path, Path):
+            if type(self.__path) == str:
                 self.__path = Path(self.__path)
             if self.__path.suffix != ".tex":
                 self.__path = self.__path.with_suffix(".tex")
 
+    # noinspection PyUnresolvedReferences
     @property
-    def path(self) -> Path:
+    def path(self) -> Union[str, Path, "TransparentPath"]:
         return self.__path
-
-    @property
-    def path_output(self) -> Path:
-        return self.__path
-
-    @path.setter
-    def path(self, apath: Union[str, Path, None]):
-        if apath is not None:
-            if not isinstance(apath, Path):
-                apath = Path(apath)
-            if apath.suffix != ".tex":
-                apath = apath.with_suffix(".tex")
-        self.__path = apath
-
-    @path_output.setter
-    def path_output(self, apath: Union[str, Path, None]):
-        self.path = apath
 
     # ////////////
     # // Makers //
@@ -426,7 +421,7 @@ class TableWriter(object):
             raise ValueError(f"Tex file {self.__path} not found.")
 
         path_to_compile = self.__path
-        if "gcs" in self.__path.fs_kind:
+        if "fs_kind" in dir(self.__path) and "gcs" in self.__path.fs_kind:  # Using TransparentPath on gcs
             path_to_compile = tempfile.NamedTemporaryFile(delete=False, suffix=".tex")
             path_to_compile.close()
             self.__path.get(path_to_compile.name)
@@ -449,7 +444,7 @@ class TableWriter(object):
         time.sleep(0.5)
         x3 = os.system(command)
 
-        if "gcs" in self.__path.fs_kind:
+        if "fs_kind" in dir(self.__path) and "gcs" in self.__path.fs_kind:
             glob_in = path_to_compile.parent
             for path in glob_in.glob(f"{path_to_compile.stem}*"):
                 path_gcs = self.__path.with_suffix(path.suffix)
@@ -481,7 +476,12 @@ class TableWriter(object):
         files = self.__path.parent.glob(f"{self.__path.stem}*")
         for f in files:
             if f.suffix not in to_keep:
-                f.rm()
+                if f.is_file():
+                    f.unlink()
+                elif "rm" in dir(f):
+                    f.rm()
+                else:
+                    shutil.rmtree(f)
 
 
 def remove_color(obj: str) -> str:

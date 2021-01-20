@@ -1,3 +1,2 @@
 pandas
-transparentpath>=0.2.30
-dask[dataframe]
+pathlib
