@@ -254,12 +254,12 @@ class TableWriter(object):
     @path.setter
     def path(self, apath: Union[str, Path, "TransparentPath", None]):
         if type(apath) == str:
-            apath = Path(apath)
-        if apath is not None:
-            if not isinstance(apath, Path):
+            if self.__path is not None:
+                apath = type(self.__path)(apath)
+            else:
                 apath = Path(apath)
-            if apath.suffix != ".tex":
-                apath = apath.with_suffix(".tex")
+        if apath.suffix != ".tex":
+            apath = apath.with_suffix(".tex")
         self.__path = apath
 
     # noinspection PyUnresolvedReferences
@@ -448,7 +448,7 @@ class TableWriter(object):
             path_to_compile.close()
             # noinspection PyUnresolvedReferences
             self.__path.get(path_to_compile.name)
-            path_to_compile = Path(path_to_compile.name, fs="local")
+            path_to_compile = type(self.__path)(path_to_compile.name, fs="local")
 
         command = "pdflatex -synctex=1 -interaction=nonstopmode "
         parent = path_to_compile.parent
