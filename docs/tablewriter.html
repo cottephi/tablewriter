@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
-<meta name="generator" content="pdoc 0.9.1" />
+<meta name="generator" content="pdoc 0.9.2" />
 <title>tablewriter.tablewriter API documentation</title>
 <meta name="description" content="Created on some day of 2018 or 2019 …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
@@ -35,10 +35,10 @@
 &#34;&#34;&#34;
 
 import os
+import shutil
 import time
 import tempfile
-import dask.dataframe as dd
-from transparentpath import TransparentPath as Path
+from pathlib import Path
 from typing import Any, Dict, TypeVar, Union, Optional
 
 import pandas as pd
@@ -70,6 +70,7 @@ class TableWriter(object):
     --------
 
     &gt;&gt;&gt; from tablewriter import TableWriter  # doctest: +SKIP
+    &gt;&gt;&gt; # noinspection PyShadowingNames
     &gt;&gt;&gt; import pandas as pd  # doctest: +SKIP
     &gt;&gt;&gt; df = pd.DataFrame(columns=[&#34;$x$&#34;, &#34;$x^2$&#34;],  # doctest: +SKIP
     &gt;&gt;&gt;                   index=[&#34;$A_{00}$&#34;, &#34;$A_{01}$&#34;], data=[[2, 4], [3, 9]])  # doctest: +SKIP
@@ -100,6 +101,7 @@ class TableWriter(object):
     Here is a more complete example of table generation :
 
     &gt;&gt;&gt; from tablewriter import TableWriter  # doctest: +SKIP
+    &gt;&gt;&gt; # noinspection PyShadowingNames
     &gt;&gt;&gt; import pandas as pd  # doctest: +SKIP
     &gt;&gt;&gt; df = pd.DataFrame(columns=[&#34;$x$&#34;, &#34;$x^2$&#34;], index=[&#34;$A_{00}$&#34;, &#34;$A_{01}$&#34;],    # doctest: +SKIP
     &gt;&gt;&gt;                   data=[[&#34;2&#34;, &#34;$2^2$&#34;], [&#34;3&#34;, &#34;$3^2$&#34;]])  # doctest: +SKIP
@@ -120,11 +122,12 @@ class TableWriter(object):
     # // Initialisers //
     # //////////////////
 
+    # noinspection PyUnresolvedReferences
     def __init__(
         self,
-        path_output: Optional[Union[str, Path]] = None,
-        data: Optional[Union[pd.DataFrame, dd.DataFrame]] = None,
-        path_input: Optional[Union[str, Path]] = None,
+        path_output: Optional[Union[str, Path, &#34;TransparentPath&#34;]] = None,
+        data: Optional[Union[pd.DataFrame, &#34;dask.dataframe.DataFrame&#34;]] = None,
+        path_input: Optional[Union[str, Path, &#34;TransparentPath&#34;]] = None,
         to_latex_args: Optional[Dict[str, Any]] = None,
         label: Optional[str] = None,
         caption: Optional[str] = None,
@@ -140,13 +143,13 @@ class TableWriter(object):
 
         Parameters
         ----------
-        path_output: Union[str, TransparentPath]
+        path_output: Union[str, Path, TransparentPath]
             Path to the .tex file to create. If the path&#39;s suffix is not .tex, it will be changed to .tex.
             You can set this path later using mytable.path = ... or mytable.path_output = ...
             (Default value = None)
-        data: Union[pd.DataFrame, dd.DataFrame]
+        data: Union[pd.DataFrame, dask.dataframe.DataFrame]
             Data to transform to table. Can not be specified alongside path_input. (Default value = None)
-        path_input: Union[str, TransparentPath]
+        path_input: Union[str, Path, TransparentPath]
             Path to the file to use to read the DataFrame from. Can not be specified alongside data.
             (Default value = None)
         to_latex_args: Dict[str, Any]
@@ -185,15 +188,22 @@ class TableWriter(object):
         if path_input is not None:
             if read_from_file_args is None:
                 read_from_file_args = {}
-            if not isinstance(path_input, Path):
+            if type(path_input) == str:  # Do not use isinstance because isinstance(TransparentPath, str) is True
                 path_input = Path(path_input)
-            data = path_input.read(**read_from_file_args)
+            if &#34;read&#34; in dir(path_input):
+                data = path_input.read(**read_from_file_args)
+            elif path_input.suffix == &#34;.csv&#34;:
+                data = pd.read_csv(path_input, **read_from_file_args)
+            elif path_input.suffix == &#34;.parquet&#34;:
+                data = pd.read_parquet(path_input, **read_from_file_args)
+            else:
+                raise ValueError(f&#34;Can not read file {path_input} : unsupported extension.&#34;)
 
-        if isinstance(data, dd.DataFrame):
+        if &#34;dask.dataframe&#34; in str(type(data)):
             data = data.head(len(data.index))
 
         if data is not None and not isinstance(data, pd.DataFrame):
-            raise ValueError(&#34;Data must be a DataFrame&#34;)
+            raise ValueError(f&#34;Data must be a DataFrame, got {type(data)}&#34;)
 
         if packages is None:
             packages = {}
@@ -255,30 +265,36 @@ class TableWriter(object):
         self.number = str(int(self.number))
 
         if self.__path is not None:
-            if not isinstance(self.__path, Path):
+            if type(self.__path) == str:
                 self.__path = Path(self.__path)
             if self.__path.suffix != &#34;.tex&#34;:
                 self.__path = self.__path.with_suffix(&#34;.tex&#34;)
 
+    # noinspection PyUnresolvedReferences
     @property
-    def path(self) -&gt; Path:
+    def path(self) -&gt; Union[Path, &#34;TransparentPath&#34;]:
         return self.__path
 
+    # noinspection PyUnresolvedReferences
     @property
-    def path_output(self) -&gt; Path:
+    def path_output(self) -&gt; Union[Path, &#34;TransparentPath&#34;]:
         return self.__path
 
+    # noinspection PyUnresolvedReferences
     @path.setter
-    def path(self, apath: Union[str, Path, None]):
-        if apath is not None:
-            if not isinstance(apath, Path):
+    def path(self, apath: Union[str, Path, &#34;TransparentPath&#34;, None]):
+        if type(apath) == str:
+            if self.__path is not None:
+                apath = type(self.__path)(apath)
+            else:
                 apath = Path(apath)
-            if apath.suffix != &#34;.tex&#34;:
-                apath = apath.with_suffix(&#34;.tex&#34;)
+        if apath.suffix != &#34;.tex&#34;:
+            apath = apath.with_suffix(&#34;.tex&#34;)
         self.__path = apath
 
+    # noinspection PyUnresolvedReferences
     @path_output.setter
-    def path_output(self, apath: Union[str, Path, None]):
+    def path_output(self, apath: Union[str, Path, &#34;TransparentPath&#34;, None]):
         self.path = apath
 
     # ////////////
@@ -456,11 +472,13 @@ class TableWriter(object):
             raise ValueError(f&#34;Tex file {self.__path} not found.&#34;)
 
         path_to_compile = self.__path
-        if self.__path.fs_kind == &#34;gcs&#34;:
+        # noinspection PyUnresolvedReferences
+        if &#34;fs_kind&#34; in dir(self.__path) and &#34;gcs&#34; in self.__path.fs_kind:  # Using TransparentPath on gcs
             path_to_compile = tempfile.NamedTemporaryFile(delete=False, suffix=&#34;.tex&#34;)
             path_to_compile.close()
+            # noinspection PyUnresolvedReferences
             self.__path.get(path_to_compile.name)
-            path_to_compile = Path(path_to_compile.name, fs=&#34;local&#34;)
+            path_to_compile = type(self.__path)(path_to_compile.name, fs=&#34;local&#34;)
 
         command = &#34;pdflatex -synctex=1 -interaction=nonstopmode &#34;
         parent = path_to_compile.parent
@@ -479,10 +497,14 @@ class TableWriter(object):
         time.sleep(0.5)
         x3 = os.system(command)
 
-        if self.__path.fs_kind == &#34;gcs&#34;:
-            for path in path_to_compile.with_suffix(&#34;&#34;).glob(&#34;*&#34;):
+        # noinspection PyUnresolvedReferences
+        if &#34;fs_kind&#34; in dir(self.__path) and &#34;gcs&#34; in self.__path.fs_kind:
+            glob_in = path_to_compile.parent
+            for path in glob_in.glob(f&#34;{path_to_compile.stem}*&#34;):
                 path_gcs = self.__path.with_suffix(path.suffix)
+                # noinspection PyUnresolvedReferences
                 path.put(path_gcs)
+                # noinspection PyUnresolvedReferences
                 path.rm()
 
         if x1 != 0 or x2 != 0 or x3 != 0:
@@ -507,10 +529,16 @@ class TableWriter(object):
         to_keep = [&#34;.pdf&#34;, &#34;.csv&#34;, &#34;.excel&#34;]
         if not clean_tex:
             to_keep.append(&#34;.tex&#34;)
-        files = self.__path.with_suffix(&#34;&#34;).glob(&#34;*&#34;)
+        files = self.__path.parent.glob(f&#34;{self.__path.stem}*&#34;)
         for f in files:
             if f.suffix not in to_keep:
-                f.rm()
+                if f.is_file():
+                    f.unlink()
+                elif &#34;rm&#34; in dir(f):
+                    # noinspection PyUnresolvedReferences
+                    f.rm()
+                else:
+                    shutil.rmtree(f)
 
 
 def remove_color(obj: str) -&gt; str:
@@ -794,7 +822,7 @@ writer = TableWriter(data=dff)</p></div>
 <dl>
 <dt id="tablewriter.tablewriter.TableWriter"><code class="flex name class">
 <span>class <span class="ident">TableWriter</span></span>
-<span>(</span><span>path_output: Union[str, transparentpath.gcsutils.transparentpath.TransparentPath, NoneType] = None, data: Union[pandas.core.frame.DataFrame, dask.dataframe.core.DataFrame, NoneType] = None, path_input: Union[str, transparentpath.gcsutils.transparentpath.TransparentPath, NoneType] = None, to_latex_args: Union[Dict[str, Any], NoneType] = None, label: Union[str, NoneType] = None, caption: Union[str, NoneType] = None, packages: Dict[str, Union[NoneType, Dict[str, Union[str, NoneType]]]] = None, read_from_file_args: Dict = None, paperwidth: Union[int, float] = 0, paperheight: Union[int, float] = 0, number: int = 1, hide_numbering: bool = False)</span>
+<span>(</span><span>path_output: Union[str, pathlib.Path, ForwardRef('TransparentPath'), NoneType] = None, data: Union[pandas.core.frame.DataFrame, ForwardRef('dask.dataframe.DataFrame'), NoneType] = None, path_input: Union[str, pathlib.Path, ForwardRef('TransparentPath'), NoneType] = None, to_latex_args: Union[Dict[str, Any], NoneType] = None, label: Union[str, NoneType] = None, caption: Union[str, NoneType] = None, packages: Dict[str, Union[NoneType, Dict[str, Union[str, NoneType]]]] = None, read_from_file_args: Dict = None, paperwidth: Union[int, float] = 0, paperheight: Union[int, float] = 0, number: int = 1, hide_numbering: bool = False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Class used to produce a ready-to-compile .tex file containing a table from a pandas or dask DataFrame object.
@@ -813,6 +841,7 @@ characters ("$", "_", "^", "%", "&amp;"), a '' is put before them.
 Mathmode using '$' is handled.</p>
 <h2 id="examples">Examples</h2>
 <pre><code class="language-python-repl">&gt;&gt;&gt; from tablewriter import TableWriter  # doctest: +SKIP
+&gt;&gt;&gt; # noinspection PyShadowingNames
 &gt;&gt;&gt; import pandas as pd  # doctest: +SKIP
 &gt;&gt;&gt; df = pd.DataFrame(columns=[&quot;$x$&quot;, &quot;$x^2$&quot;],  # doctest: +SKIP
 &gt;&gt;&gt;                   index=[&quot;$A_{00}$&quot;, &quot;$A_{01}$&quot;], data=[[2, 4], [3, 9]])  # doctest: +SKIP
@@ -838,6 +867,7 @@ behavior :</p>
 </code></pre>
 <p>Here is a more complete example of table generation :</p>
 <pre><code class="language-python-repl">&gt;&gt;&gt; from tablewriter import TableWriter  # doctest: +SKIP
+&gt;&gt;&gt; # noinspection PyShadowingNames
 &gt;&gt;&gt; import pandas as pd  # doctest: +SKIP
 &gt;&gt;&gt; df = pd.DataFrame(columns=[&quot;$x$&quot;, &quot;$x^2$&quot;], index=[&quot;$A_{00}$&quot;, &quot;$A_{01}$&quot;],    # doctest: +SKIP
 &gt;&gt;&gt;                   data=[[&quot;2&quot;, &quot;$2^2$&quot;], [&quot;3&quot;, &quot;$3^2$&quot;]])  # doctest: +SKIP
@@ -856,13 +886,13 @@ behavior :</p>
 setters.</p>
 <h2 id="parameters">Parameters</h2>
 <dl>
-<dt><strong><code>path_output</code></strong> :&ensp;<code>Union[str, TransparentPath]</code></dt>
+<dt><strong><code>path_output</code></strong> :&ensp;<code>Union[str, Path, TransparentPath]</code></dt>
 <dd>Path to the .tex file to create. If the path's suffix is not .tex, it will be changed to .tex.
 You can set this path later using mytable.path = &hellip; or mytable.path_output = &hellip;
 (Default value = None)</dd>
-<dt><strong><code>data</code></strong> :&ensp;<code>Union[pd.DataFrame, dd.DataFrame]</code></dt>
+<dt><strong><code>data</code></strong> :&ensp;<code>Union[pd.DataFrame, dask.dataframe.DataFrame]</code></dt>
 <dd>Data to transform to table. Can not be specified alongside path_input. (Default value = None)</dd>
-<dt><strong><code>path_input</code></strong> :&ensp;<code>Union[str, TransparentPath]</code></dt>
+<dt><strong><code>path_input</code></strong> :&ensp;<code>Union[str, Path, TransparentPath]</code></dt>
 <dd>Path to the file to use to read the DataFrame from. Can not be specified alongside data.
 (Default value = None)</dd>
 <dt><strong><code>to_latex_args</code></strong> :&ensp;<code>Dict[str, Any]</code></dt>
@@ -919,6 +949,7 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
     --------
 
     &gt;&gt;&gt; from tablewriter import TableWriter  # doctest: +SKIP
+    &gt;&gt;&gt; # noinspection PyShadowingNames
     &gt;&gt;&gt; import pandas as pd  # doctest: +SKIP
     &gt;&gt;&gt; df = pd.DataFrame(columns=[&#34;$x$&#34;, &#34;$x^2$&#34;],  # doctest: +SKIP
     &gt;&gt;&gt;                   index=[&#34;$A_{00}$&#34;, &#34;$A_{01}$&#34;], data=[[2, 4], [3, 9]])  # doctest: +SKIP
@@ -949,6 +980,7 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
     Here is a more complete example of table generation :
 
     &gt;&gt;&gt; from tablewriter import TableWriter  # doctest: +SKIP
+    &gt;&gt;&gt; # noinspection PyShadowingNames
     &gt;&gt;&gt; import pandas as pd  # doctest: +SKIP
     &gt;&gt;&gt; df = pd.DataFrame(columns=[&#34;$x$&#34;, &#34;$x^2$&#34;], index=[&#34;$A_{00}$&#34;, &#34;$A_{01}$&#34;],    # doctest: +SKIP
     &gt;&gt;&gt;                   data=[[&#34;2&#34;, &#34;$2^2$&#34;], [&#34;3&#34;, &#34;$3^2$&#34;]])  # doctest: +SKIP
@@ -969,11 +1001,12 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
     # // Initialisers //
     # //////////////////
 
+    # noinspection PyUnresolvedReferences
     def __init__(
         self,
-        path_output: Optional[Union[str, Path]] = None,
-        data: Optional[Union[pd.DataFrame, dd.DataFrame]] = None,
-        path_input: Optional[Union[str, Path]] = None,
+        path_output: Optional[Union[str, Path, &#34;TransparentPath&#34;]] = None,
+        data: Optional[Union[pd.DataFrame, &#34;dask.dataframe.DataFrame&#34;]] = None,
+        path_input: Optional[Union[str, Path, &#34;TransparentPath&#34;]] = None,
         to_latex_args: Optional[Dict[str, Any]] = None,
         label: Optional[str] = None,
         caption: Optional[str] = None,
@@ -989,13 +1022,13 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
 
         Parameters
         ----------
-        path_output: Union[str, TransparentPath]
+        path_output: Union[str, Path, TransparentPath]
             Path to the .tex file to create. If the path&#39;s suffix is not .tex, it will be changed to .tex.
             You can set this path later using mytable.path = ... or mytable.path_output = ...
             (Default value = None)
-        data: Union[pd.DataFrame, dd.DataFrame]
+        data: Union[pd.DataFrame, dask.dataframe.DataFrame]
             Data to transform to table. Can not be specified alongside path_input. (Default value = None)
-        path_input: Union[str, TransparentPath]
+        path_input: Union[str, Path, TransparentPath]
             Path to the file to use to read the DataFrame from. Can not be specified alongside data.
             (Default value = None)
         to_latex_args: Dict[str, Any]
@@ -1034,15 +1067,22 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
         if path_input is not None:
             if read_from_file_args is None:
                 read_from_file_args = {}
-            if not isinstance(path_input, Path):
+            if type(path_input) == str:  # Do not use isinstance because isinstance(TransparentPath, str) is True
                 path_input = Path(path_input)
-            data = path_input.read(**read_from_file_args)
+            if &#34;read&#34; in dir(path_input):
+                data = path_input.read(**read_from_file_args)
+            elif path_input.suffix == &#34;.csv&#34;:
+                data = pd.read_csv(path_input, **read_from_file_args)
+            elif path_input.suffix == &#34;.parquet&#34;:
+                data = pd.read_parquet(path_input, **read_from_file_args)
+            else:
+                raise ValueError(f&#34;Can not read file {path_input} : unsupported extension.&#34;)
 
-        if isinstance(data, dd.DataFrame):
+        if &#34;dask.dataframe&#34; in str(type(data)):
             data = data.head(len(data.index))
 
         if data is not None and not isinstance(data, pd.DataFrame):
-            raise ValueError(&#34;Data must be a DataFrame&#34;)
+            raise ValueError(f&#34;Data must be a DataFrame, got {type(data)}&#34;)
 
         if packages is None:
             packages = {}
@@ -1104,30 +1144,36 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
         self.number = str(int(self.number))
 
         if self.__path is not None:
-            if not isinstance(self.__path, Path):
+            if type(self.__path) == str:
                 self.__path = Path(self.__path)
             if self.__path.suffix != &#34;.tex&#34;:
                 self.__path = self.__path.with_suffix(&#34;.tex&#34;)
 
+    # noinspection PyUnresolvedReferences
     @property
-    def path(self) -&gt; Path:
+    def path(self) -&gt; Union[Path, &#34;TransparentPath&#34;]:
         return self.__path
 
+    # noinspection PyUnresolvedReferences
     @property
-    def path_output(self) -&gt; Path:
+    def path_output(self) -&gt; Union[Path, &#34;TransparentPath&#34;]:
         return self.__path
 
+    # noinspection PyUnresolvedReferences
     @path.setter
-    def path(self, apath: Union[str, Path, None]):
-        if apath is not None:
-            if not isinstance(apath, Path):
+    def path(self, apath: Union[str, Path, &#34;TransparentPath&#34;, None]):
+        if type(apath) == str:
+            if self.__path is not None:
+                apath = type(self.__path)(apath)
+            else:
                 apath = Path(apath)
-            if apath.suffix != &#34;.tex&#34;:
-                apath = apath.with_suffix(&#34;.tex&#34;)
+        if apath.suffix != &#34;.tex&#34;:
+            apath = apath.with_suffix(&#34;.tex&#34;)
         self.__path = apath
 
+    # noinspection PyUnresolvedReferences
     @path_output.setter
-    def path_output(self, apath: Union[str, Path, None]):
+    def path_output(self, apath: Union[str, Path, &#34;TransparentPath&#34;, None]):
         self.path = apath
 
     # ////////////
@@ -1305,11 +1351,13 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
             raise ValueError(f&#34;Tex file {self.__path} not found.&#34;)
 
         path_to_compile = self.__path
-        if self.__path.fs_kind == &#34;gcs&#34;:
+        # noinspection PyUnresolvedReferences
+        if &#34;fs_kind&#34; in dir(self.__path) and &#34;gcs&#34; in self.__path.fs_kind:  # Using TransparentPath on gcs
             path_to_compile = tempfile.NamedTemporaryFile(delete=False, suffix=&#34;.tex&#34;)
             path_to_compile.close()
+            # noinspection PyUnresolvedReferences
             self.__path.get(path_to_compile.name)
-            path_to_compile = Path(path_to_compile.name, fs=&#34;local&#34;)
+            path_to_compile = type(self.__path)(path_to_compile.name, fs=&#34;local&#34;)
 
         command = &#34;pdflatex -synctex=1 -interaction=nonstopmode &#34;
         parent = path_to_compile.parent
@@ -1328,10 +1376,14 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
         time.sleep(0.5)
         x3 = os.system(command)
 
-        if self.__path.fs_kind == &#34;gcs&#34;:
-            for path in path_to_compile.with_suffix(&#34;&#34;).glob(&#34;*&#34;):
+        # noinspection PyUnresolvedReferences
+        if &#34;fs_kind&#34; in dir(self.__path) and &#34;gcs&#34; in self.__path.fs_kind:
+            glob_in = path_to_compile.parent
+            for path in glob_in.glob(f&#34;{path_to_compile.stem}*&#34;):
                 path_gcs = self.__path.with_suffix(path.suffix)
+                # noinspection PyUnresolvedReferences
                 path.put(path_gcs)
+                # noinspection PyUnresolvedReferences
                 path.rm()
 
         if x1 != 0 or x2 != 0 or x3 != 0:
@@ -1356,14 +1408,20 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
         to_keep = [&#34;.pdf&#34;, &#34;.csv&#34;, &#34;.excel&#34;]
         if not clean_tex:
             to_keep.append(&#34;.tex&#34;)
-        files = self.__path.with_suffix(&#34;&#34;).glob(&#34;*&#34;)
+        files = self.__path.parent.glob(f&#34;{self.__path.stem}*&#34;)
         for f in files:
             if f.suffix not in to_keep:
-                f.rm()</code></pre>
+                if f.is_file():
+                    f.unlink()
+                elif &#34;rm&#34; in dir(f):
+                    # noinspection PyUnresolvedReferences
+                    f.rm()
+                else:
+                    shutil.rmtree(f)</code></pre>
 </details>
 <h3>Instance variables</h3>
 <dl>
-<dt id="tablewriter.tablewriter.TableWriter.path"><code class="name">var <span class="ident">path</span> : transparentpath.gcsutils.transparentpath.TransparentPath</code></dt>
+<dt id="tablewriter.tablewriter.TableWriter.path"><code class="name">var <span class="ident">path</span> : Union[pathlib.Path, TransparentPath]</code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1371,11 +1429,11 @@ Do not show 'Table N' in the caption. (Default value = False)</p></div>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@property
-def path(self) -&gt; Path:
+def path(self) -&gt; Union[Path, &#34;TransparentPath&#34;]:
     return self.__path</code></pre>
 </details>
 </dd>
-<dt id="tablewriter.tablewriter.TableWriter.path_output"><code class="name">var <span class="ident">path_output</span> : transparentpath.gcsutils.transparentpath.TransparentPath</code></dt>
+<dt id="tablewriter.tablewriter.TableWriter.path_output"><code class="name">var <span class="ident">path_output</span> : Union[pathlib.Path, TransparentPath]</code></dt>
 <dd>
 <div class="desc"></div>
 <details class="source">
@@ -1383,7 +1441,7 @@ def path(self) -&gt; Path:
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@property
-def path_output(self) -&gt; Path:
+def path_output(self) -&gt; Union[Path, &#34;TransparentPath&#34;]:
     return self.__path</code></pre>
 </details>
 </dd>
@@ -1447,10 +1505,16 @@ True.</p>
     to_keep = [&#34;.pdf&#34;, &#34;.csv&#34;, &#34;.excel&#34;]
     if not clean_tex:
         to_keep.append(&#34;.tex&#34;)
-    files = self.__path.with_suffix(&#34;&#34;).glob(&#34;*&#34;)
+    files = self.__path.parent.glob(f&#34;{self.__path.stem}*&#34;)
     for f in files:
         if f.suffix not in to_keep:
-            f.rm()</code></pre>
+            if f.is_file():
+                f.unlink()
+            elif &#34;rm&#34; in dir(f):
+                # noinspection PyUnresolvedReferences
+                f.rm()
+            else:
+                shutil.rmtree(f)</code></pre>
 </details>
 </dd>
 <dt id="tablewriter.tablewriter.TableWriter.compile"><code class="name flex">
@@ -1508,11 +1572,13 @@ True.</p>
         raise ValueError(f&#34;Tex file {self.__path} not found.&#34;)
 
     path_to_compile = self.__path
-    if self.__path.fs_kind == &#34;gcs&#34;:
+    # noinspection PyUnresolvedReferences
+    if &#34;fs_kind&#34; in dir(self.__path) and &#34;gcs&#34; in self.__path.fs_kind:  # Using TransparentPath on gcs
         path_to_compile = tempfile.NamedTemporaryFile(delete=False, suffix=&#34;.tex&#34;)
         path_to_compile.close()
+        # noinspection PyUnresolvedReferences
         self.__path.get(path_to_compile.name)
-        path_to_compile = Path(path_to_compile.name, fs=&#34;local&#34;)
+        path_to_compile = type(self.__path)(path_to_compile.name, fs=&#34;local&#34;)
 
     command = &#34;pdflatex -synctex=1 -interaction=nonstopmode &#34;
     parent = path_to_compile.parent
@@ -1531,10 +1597,14 @@ True.</p>
     time.sleep(0.5)
     x3 = os.system(command)
 
-    if self.__path.fs_kind == &#34;gcs&#34;:
-        for path in path_to_compile.with_suffix(&#34;&#34;).glob(&#34;*&#34;):
+    # noinspection PyUnresolvedReferences
+    if &#34;fs_kind&#34; in dir(self.__path) and &#34;gcs&#34; in self.__path.fs_kind:
+        glob_in = path_to_compile.parent
+        for path in glob_in.glob(f&#34;{path_to_compile.stem}*&#34;):
             path_gcs = self.__path.with_suffix(path.suffix)
+            # noinspection PyUnresolvedReferences
             path.put(path_gcs)
+            # noinspection PyUnresolvedReferences
             path.rm()
 
     if x1 != 0 or x2 != 0 or x3 != 0:
@@ -1607,7 +1677,7 @@ True.</p>
 </nav>
 </main>
 <footer id="footer">
-<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.1</a>.</p>
+<p>Generated by <a href="https://pdoc3.github.io/pdoc"><cite>pdoc</cite> 0.9.2</a>.</p>
 </footer>
 </body>
 </html>
