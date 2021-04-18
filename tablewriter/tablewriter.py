@@ -88,6 +88,9 @@ class TableWriter(object):
 
     """
 
+    MAX_PAPER_WIDTH = 12.0  # cm
+    MAX_PAPER_HEIGHT = 19.4  # cm
+
     # //////////////////
     # // Initialisers //
     # //////////////////
@@ -288,14 +291,19 @@ class TableWriter(object):
             self.paperwidth = charswidth + 0.8 * (len(self.data.columns)) + 1
             if self.paperwidth < 9:
                 self.paperwidth = 9
+            if self.paperwidth > TableWriter.MAX_PAPER_WIDTH:
+                self.paperwidth = TableWriter.MAX_PAPER_WIDTH
+                # self.to_latex_args["widesplit"] = True
+            else:
+                # self.to_latex_args["widesplit"] = False
+
         # Same for height
         if not self.data.empty:
             self.paperheight = 3.5 + (len(self.data.index)) * 0.45
             if self.paperheight < 4:
                 self.paperheight = 4
-            if self.paperheight > 24:
-                # Limit page height to A4's 24 cm
-                self.paperheight = 24
+            if self.paperheight > TableWriter.MAX_PAPER_HEIGHT:
+                self.paperheight = TableWriter.MAX_PAPER_HEIGHT
                 self.to_latex_args["longtable"] = True
             else:
                 self.to_latex_args["longtable"] = False

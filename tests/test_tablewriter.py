@@ -14,7 +14,7 @@ def test_tablewriter_from_dataframe(cls):
     table = TableWriter(
         path_output=cls("tests/data/ouput"),
         data=df,
-        to_latex_args={"column_format": "lrr"},
+        # to_latex_args={"column_format": "lrr"},
         label="tab::example",
         caption="TableWriter example",
         hide_numbering=True,
@@ -24,7 +24,7 @@ def test_tablewriter_from_dataframe(cls):
         cls = Path
     assert cls("tests/data/ouput.tex").is_file()
     assert cls("tests/data/ouput.pdf").is_file()
-    cls("tests/data/ouput.pdf").unlink()
+    # cls("tests/data/ouput.pdf").unlink()
     cls("tests/data/ouput.tex").unlink()
 
 
@@ -45,5 +45,5 @@ def test_tablewriter_from_file(cls):
     table.compile(silenced=False)
     assert cls("tests/data/ouput_from_file.tex").is_file()
     assert cls("tests/data/ouput_from_file.pdf").is_file()
-    cls("tests/data/ouput_from_file.pdf").unlink()
+    # cls("tests/data/ouput_from_file.pdf").unlink()
     cls("tests/data/ouput_from_file.tex").unlink()
