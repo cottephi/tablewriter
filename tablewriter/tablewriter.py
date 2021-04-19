@@ -153,6 +153,8 @@ class TableWriter(object):
             Do not show 'Table N' in the caption. (Default value = False)
         """
 
+        self.widesplit = False
+
         if data is None and path_input is None:
             raise ValueError("You must give data or path_input argument.")
         if data is not None and path_input is not None:
@@ -293,9 +295,7 @@ class TableWriter(object):
                 self.paperwidth = 9
             if self.paperwidth > TableWriter.MAX_PAPER_WIDTH:
                 self.paperwidth = TableWriter.MAX_PAPER_WIDTH
-                # self.to_latex_args["widesplit"] = True
-            else:
-                # self.to_latex_args["widesplit"] = False
+                self.widesplit = True
 
         # Same for height
         if not self.data.empty:
@@ -327,6 +327,24 @@ class TableWriter(object):
                         self.header += o + "=" + self.packages[p][o] + ","
                 self.header = self.header[:-1] + "]{" + p + "}\n"
         self.header += "\\begin{document}\n\\nonstopmode\n\\setcounter{table}{" + self.number + "}\n"
+        if self.widesplit:
+
+            toadd = [
+                "\\def\\widesplit#1{",
+                "\\def\\row##1##2##3{##1}",
+                "#1",
+                "\\clearpage",
+                "\\def\\row##1##2##3{##2}",
+                "#1",
+                "\\clearpage",
+                "\\def\\row##1##2##3{##3}",
+                "#1",
+                "\\clearpage",
+                "}",
+                "\\widesplit{",
+            ]
+
+            self.header = "\n".join([self.header] + toadd)
 
     def _make_body(self) -> None:
         """Makes the main body of tex file."""
@@ -357,8 +375,9 @@ class TableWriter(object):
 
     def _make_footer(self) -> None:
         """Makes the footer of tex file."""
-
         self.footer = "\\end{document}\n"
+        if self.widesplit:
+            self.footer = "\n".join(["}", self.footer])
 
     def _escape_special_chars(self, s: T) -> T:
         """Will add '\\' before special characters outside of mathmode to given
@@ -461,9 +480,9 @@ class TableWriter(object):
         command = "pdflatex -synctex=1 -interaction=nonstopmode "
         parent = path_to_compile.parent
         if parent != ".":
-            command = f"{command} -output-directory=\"{parent}\""
+            command = f'{command} -output-directory="{parent}"'
 
-        command = f"{command} \"{path_to_compile}\""
+        command = f'{command} "{path_to_compile}"'
         if silenced:  # unix
             if os.name == "posix":
                 command = f"{command} > /dev/null"
