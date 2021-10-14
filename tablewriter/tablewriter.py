@@ -348,8 +348,8 @@ class TableWriter(object):
         if self.caption is not None and self.hide_numbering:
             self.body = self.body.replace("\\caption{", "\\caption*{")
 
-        if self.caption is not None or self.label is not None:
-            self.body = self.body.replace("\n\\toprule", "\\\\\n\\toprule")
+        # if self.caption is not None or self.label is not None:
+        #     self.body = self.body.replace("\n\\toprule", "\\\\\n\\toprule")
         self.body = self.body.replace("\\\\\\\\", "\\\\")
 
     def _make_footer(self) -> None:
