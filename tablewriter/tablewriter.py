@@ -203,7 +203,12 @@ class TableWriter(object):
         if self.label is not None:
             self.to_latex_args["label"] = self.label
         if "column_format" not in self.to_latex_args:
-            self.to_latex_args["column_format"] = "|l|" + len(self.data.columns) * "c" + "|"
+            if isinstance(self.data.index, pd.MultiIndex):
+                self.to_latex_args["column_format"] = (
+                    "|" + self.data.index.nlevels * "l" + "|" + len(self.data.columns) * "c" + "|"
+                )
+            else:
+                self.to_latex_args["column_format"] = "|l|" + len(self.data.columns) * "c" + "|"
         if "escape" not in self.to_latex_args:
             self.to_latex_args["escape"] = True
         if "longtable" not in self.to_latex_args:
@@ -281,9 +286,9 @@ class TableWriter(object):
 
         # Try to guess a kind of optimal width for the table
         if not self.data.empty:
+
             charswidth = (
-                len("".join(list(self.data.columns.dropna().astype(str))))
-                + max([len(ind) for ind in self.data.index.dropna().astype(str)])
+                len("".join(list(self.data.columns.dropna().astype(str)))) + max([len(str(e)) for e in self.data.index])
             ) * 0.178
             self.paperwidth = charswidth + 0.8 * (len(self.data.columns)) + 1
             if self.paperwidth < 9:
@@ -392,8 +397,21 @@ class TableWriter(object):
     def build(self):
         """build header body and footer."""
         if "escape" in self.to_latex_args and self.to_latex_args["escape"]:
-            self.data.index = [self._escape_special_chars(s) for s in self.data.index]
-            self.data.columns = [self._escape_special_chars(s) for s in self.data.columns]
+            if isinstance(self.data.index, pd.MultiIndex):
+                names = [self._escape_special_chars(s) for s in self.data.index.names]
+                # noinspection PyTypeChecker
+                self.data.index = pd.MultiIndex.from_tuples(
+                    [[self._escape_special_chars(s) for s in l_] for l_ in self.data.index]
+                )
+                self.data.index.names = names
+            else:
+                name = self._escape_special_chars(self.data.index.name)
+                self.data.index = [self._escape_special_chars(s) for s in self.data.index]
+                self.data.index.name = name
+            if isinstance(self.data.columns, pd.MultiIndex):
+                self.data.columns = [[self._escape_special_chars(s) for s in l_] for l_ in self.data.columns]
+            else:
+                self.data.columns = [self._escape_special_chars(s) for s in self.data.columns]
             self.data = self.data.applymap(self._escape_special_chars)
         self.to_latex_args["escape"] = False
         self._make_header()
@@ -413,7 +431,11 @@ class TableWriter(object):
 
     # noinspection StandardShellInjection
     def compile(
-        self, silenced: bool = True, recreate: bool = True, clean: bool = True, clean_tex: bool = False,
+        self,
+        silenced: bool = True,
+        recreate: bool = True,
+        clean: bool = True,
+        clean_tex: bool = False,
     ) -> None:
         """Compile the pdf.
 
@@ -453,9 +475,9 @@ class TableWriter(object):
         command = "pdflatex -synctex=1 -interaction=nonstopmode "
         parent = path_to_compile.parent
         if parent != ".":
-            command = f"{command} -output-directory=\"{parent}\""
+            command = f'{command} -output-directory="{parent}"'
 
-        command = f"{command} \"{path_to_compile}\""
+        command = f'{command} "{path_to_compile}"'
         if silenced:  # unix
             if os.name == "posix":
                 command = f"{command} > /dev/null"
@@ -556,7 +578,10 @@ def set_color(obj: Any, color: str) -> str:
 
 # noinspection PyTypeChecker
 def set_color_dataframe(
-    df: Union[pd.DataFrame, pd.Series], color: str, color_index: bool = False, color_columns: bool = False,
+    df: Union[pd.DataFrame, pd.Series],
+    color: str,
+    color_index: bool = False,
+    color_columns: bool = False,
 ) -> Union[pd.DataFrame, pd.Series]:
     r"""Sets color for the entier DataFrame's or Series's entries.
 
