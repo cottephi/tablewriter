@@ -281,11 +281,8 @@ class TableWriter(object):
         self.paperwidth = paperwidth
         self.paperheight = paperheight
 
-        if self.paperwidth != 0 and self.paperheight != 0:
-            return
-
         # Try to guess a kind of optimal width for the table
-        if not self.data.empty:
+        if not self.data.empty and self.paperwidth == 0:
 
             charswidth = (
                 len("".join(list(self.data.columns.dropna().astype(str)))) + max([len(str(e)) for e in self.data.index])
@@ -294,7 +291,7 @@ class TableWriter(object):
             if self.paperwidth < 9:
                 self.paperwidth = 9
         # Same for height
-        if not self.data.empty:
+        if not self.data.empty and self.paperheight == 0:
             self.paperheight = 3.5 + (len(self.data.index)) * 0.45
             if self.paperheight < 4:
                 self.paperheight = 4
