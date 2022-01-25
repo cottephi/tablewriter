@@ -26,11 +26,11 @@ jobs:
       - name: build
         run: |
           python -m pip install --upgrade pip
-          pip install .
           python setup.py sdist
 
       - name: make doc
         run: |
+          pip install -r requirements.txt
           pip3 install pdoc3
           pdoc --force --html -o docs tablewriter
           mv docs/tablewriter/* docs/
