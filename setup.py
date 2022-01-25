@@ -1,8 +1,17 @@
 import subprocess
 from pathlib import Path
 from typing import List
+import sys
 
 from setuptools import find_packages, setup
+
+workdir = Path(__file__).parent
+
+name = "tablewriter"
+author = "Philippe Cotte"
+author_email = "cottephi@gmail.com"
+description = "A wrapper around pandas's DataFrame.to_latex to compile the latex to a pdf."
+url = f"https://github.com/cottephi/tablewriter"
 
 
 def run_cmd(cmd):
@@ -31,7 +40,7 @@ def get_greatest_version(versions: List[str]) -> str:
                     break
             if not lower:
                 greatest = v
-    return f"v{'.'.join([str(s) for s in greatest])}"
+    return f"v{'.'.join([str(s_) for s_ in greatest])}"
 
 
 def get_last_tag() -> str:
@@ -51,39 +60,57 @@ def get_version() -> str:
     return f"{'.'.join(last_tag.split('.'))}.{get_nb_commits_until(last_tag)}"
 
 
+git_installed = subprocess.call('command -v git >> /dev/null', shell=True)
+
 try:
-    long_description = Path("README.md").read_text()
+    long_description = (workdir / "README.md").read_text()
 except UnicodeDecodeError:
-    with open("README.md", "rb") as ifile:
+    with open(str(workdir / "README.md"), "rb") as ifile:
         lines = [line.decode("utf-8") for line in ifile.readlines()]
         long_description = "".join(lines)
 
-requirements = Path("requirements.txt").read_text().splitlines()
-try:
-    version = get_version()
-    with open("VERSION.txt", "w") as vfile:
-        vfile.write(version)
-except FileNotFoundError as e:
+requirements = (workdir / "requirements.txt").read_text().splitlines()
+
+version = None
+if git_installed == 0:
+    try:
+        version = get_version()
+        with open(str(workdir / name / "_version.py"), "w") as vfile:
+            vfile.write(f"__version__ = \"{version}\"")
+    except FileNotFoundError as e:
+        pass
+if version is None:
     # noinspection PyBroadException
     try:
-        with open("VERSION.txt", "r") as vfile:
-            version = vfile.readline()
+        with open(str(workdir / name / "_version.py"), "r") as vfile:
+            version = vfile.readline().split("= ")[-1]
     except Exception:
         version = None
 
+if "v" in version:
+    version = version.replace("v", "")
+if "-" in version:
+    version = version.replace("-", "")
+if "\"" in version:
+    version = version.replace("\"", "")
+
 
 if __name__ == "__main__":
+
+    if sys.argv[1] == "version":
+        exit(0)
+
     setup(
-        name="tablewriter",
+        name=name,
         version=version,
-        author="Philippe COTTE",
-        author_email="cottephi@gmail.com",
+        author=author,
+        author_email=author_email,
+        url=url,
+        packages=find_packages(exclude=("tests*",)),
         include_package_data=True,
-        description="A wrapper around pandas's DataFrame.to_latex to compile the latex to a pdf.",
+        description=description,
         long_description=long_description,
         long_description_content_type="text/markdown",
-        url="https://github.com/cottephi/tablewriter",
-        packages=find_packages(),
         install_requires=requirements,
         package_data={"": ["*", ".*"]},
         classifiers=[
@@ -94,24 +121,3 @@ if __name__ == "__main__":
         ],
         python_requires='>=3.7',
     )
-
-    if Path("apt-requirements.txt").is_file():
-        apt_requirements = Path("apt-requirements.txt").read_text().splitlines()
-        print("WARNING: Found apt-requirements.txt. You will have to install by hand its content :")
-        for line in apt_requirements:
-            print(" - ", line)
-        print("If you are using Linux, you can use apt-get install or equivalent to install those packages. Else,"
-              "download and install them according to your OS.")
-        print("If you are using Linux and used install.sh to install this package, you can ignore this message,"
-              "the requirements have been installed.")
-
-    if Path("gspip-requirements.txt").is_file():
-        gspip_requirements = Path("gspip-requirements.txt").read_text().splitlines()
-        print("WARNING: Found gspip-requirements.txt. You will have to install from gcs its content :")
-        for line in gspip_requirements:
-            print(" - ", line)
-        print("If you are using Linux, install and use gspip from https://github.com/Advestis/gspip. On windows,"
-              "you will have to download by hand the latest version of the required packages on"
-              " gs://pypi_server_sand/package_name")
-        print("If you are using Linux and used install.sh to install this package, you can ignore this message,"
-              "the requirements have been installed.")
