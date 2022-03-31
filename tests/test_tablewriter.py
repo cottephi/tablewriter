@@ -19,7 +19,7 @@ def test_tablewriter_from_dataframe(cls):
         caption="TableWriter example",
         hide_numbering=True,
     )
-    table.compile(silenced=True)
+    table.compile(silenced=False)
     if cls == str:
         cls = Path
     assert cls("tests/data/output.tex").is_file()
@@ -78,6 +78,6 @@ def test_tablewriter_from_file_multiindex(cls):
     )
     if cls == str:
         cls = Path
-    table.compile(silenced=True)
+    table.compile(silenced=False)
     assert cls("tests/data/output_from_file_multi.tex").is_file()
     assert cls("tests/data/output_from_file_multi.pdf").is_file()
