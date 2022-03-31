@@ -19,7 +19,7 @@
 
 
 ##### Contact
-[![linkedin](https://img.shields.io/badge/LinkedIn-Philippe Cotte-blue)](https://www.linkedin.com/in/philippe-cotte-phd-83a273109/)
+[![linkedin](https://img.shields.io/badge/LinkedIn-PhilippeCotte-blue)](https://www.linkedin.com/in/philippe-cotte-phd-83a273109/)
 [![mail](https://img.shields.io/badge/mail-maintainers-blue)](mailto:cottephi@gmail.com)
 
 # TableWriter
