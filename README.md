@@ -13,6 +13,7 @@
 #### Compatibilities
 ![ubuntu](https://img.shields.io/badge/Ubuntu-supported--tested-success)
 ![unix](https://img.shields.io/badge/Other%20Unix-supported--untested-yellow)
+![windows](https://img.shields.io/badge/Windows-supported--tested-success)
 
 ![python](https://img.shields.io/pypi/pyversions/tablewriter)
 
