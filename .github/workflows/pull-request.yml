@@ -64,7 +64,7 @@ jobs:
           pip install pytest-gitignore
           pip install pytest-github-actions-annotate-failures
           pip install .
-          choco install texlive-full
+          choco install texlive
 
       - name: Test with pytest
         run: |
