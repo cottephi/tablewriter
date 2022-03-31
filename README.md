@@ -1,8 +1,25 @@
----
-permalink: /docs/index.html
----
+[![doc](https://img.shields.io/badge/-Documentation-blue)](https://cottephi.github.io/tablewriter)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-**The complete documentation is available at https://cottephi.github.io/tablewriter/**
+#### Status
+![Pytests](https://github.com/cottephi/tablewriter/actions/workflows/pull-request.yml/badge.svg)
+![push](https://github.com/cottephi/tablewriter/actions/workflows/push.yml/badge.svg)
+
+![maintained](https://img.shields.io/badge/Maintained%3F-yes-green.svg)
+![issues](https://img.shields.io/github/issues/cottephi/tablewriter.svg)
+![pr](https://img.shields.io/github/issues-pr/cottephi/tablewriter.svg)
+
+
+#### Compatibilities
+![ubuntu](https://img.shields.io/badge/Ubuntu-supported--tested-success)
+![unix](https://img.shields.io/badge/Other%20Unix-supported--untested-yellow)
+
+![python](https://img.shields.io/pypi/pyversions/tablewriter)
+
+
+##### Contact
+[![linkedin](https://img.shields.io/badge/LinkedIn-Philippe Cotte-blue)](https://www.linkedin.com/in/philippe-cotte-phd-83a273109/)
+[![mail](https://img.shields.io/badge/mail-maintainers-blue)](mailto:cottephi@gmail.com)
 
 # TableWriter
 
