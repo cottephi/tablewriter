@@ -64,7 +64,7 @@ jobs:
           pip install pytest-gitignore
           pip install pytest-github-actions-annotate-failures
           pip install .
-          sudo apt update && sudo apt install texlive-full
+          choco install texlive-full
 
       - name: Test with pytest
         run: |
