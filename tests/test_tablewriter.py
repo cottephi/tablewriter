@@ -1,5 +1,4 @@
 import pytest
-from transparentpath import TransparentPath
 from pathlib import Path
 import pandas as pd
 from tablewriter import TableWriter
@@ -9,7 +8,7 @@ df_multi = pd.read_csv(Path("tests") / "data" / "input.csv", index_col=[0, 1])
 
 
 @pytest.mark.parametrize(
-    "cls", [Path, TransparentPath, str]
+    "cls", [Path, str]
 )
 def test_tablewriter_from_dataframe(cls):
     table = TableWriter(
@@ -20,7 +19,7 @@ def test_tablewriter_from_dataframe(cls):
         caption="TableWriter example",
         hide_numbering=True,
     )
-    table.compile(silenced=True)
+    table.compile(silenced=False)
     if cls == str:
         cls = Path
     assert cls("tests/data/output.tex").is_file()
@@ -28,7 +27,7 @@ def test_tablewriter_from_dataframe(cls):
 
 
 @pytest.mark.parametrize(
-    "cls", [Path, TransparentPath, str]
+    "cls", [Path, str]
 )
 def test_tablewriter_from_dataframe_multiindex(cls):
     table = TableWriter(
@@ -39,7 +38,7 @@ def test_tablewriter_from_dataframe_multiindex(cls):
         caption="TableWriter example",
         hide_numbering=True,
     )
-    table.compile(silenced=True)
+    table.compile(silenced=False)
     if cls == str:
         cls = Path
     assert cls("tests/data/output_multi.tex").is_file()
@@ -47,7 +46,7 @@ def test_tablewriter_from_dataframe_multiindex(cls):
 
 
 @pytest.mark.parametrize(
-    "cls", [Path, TransparentPath, str]
+    "cls", [Path, str]
 )
 def test_tablewriter_from_file(cls):
     table = TableWriter(
@@ -60,13 +59,13 @@ def test_tablewriter_from_file(cls):
     )
     if cls == str:
         cls = Path
-    table.compile(silenced=True)
+    table.compile(silenced=False)
     assert cls("tests/data/output_from_file.tex").is_file()
     assert cls("tests/data/output_from_file.pdf").is_file()
 
 
 @pytest.mark.parametrize(
-    "cls", [Path, TransparentPath, str]
+    "cls", [Path, str]
 )
 def test_tablewriter_from_file_multiindex(cls):
     table = TableWriter(
@@ -79,6 +78,6 @@ def test_tablewriter_from_file_multiindex(cls):
     )
     if cls == str:
         cls = Path
-    table.compile(silenced=True)
+    table.compile(silenced=False)
     assert cls("tests/data/output_from_file_multi.tex").is_file()
     assert cls("tests/data/output_from_file_multi.pdf").is_file()
