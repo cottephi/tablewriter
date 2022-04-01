@@ -38,7 +38,7 @@ def test_tablewriter_from_dataframe_multiindex(cls):
         caption="TableWriter example",
         hide_numbering=True,
     )
-    table.compile(silenced=True)
+    table.compile(silenced=False)
     if cls == str:
         cls = Path
     assert cls("tests/data/output_multi.tex").is_file()
@@ -59,7 +59,7 @@ def test_tablewriter_from_file(cls):
     )
     if cls == str:
         cls = Path
-    table.compile(silenced=True)
+    table.compile(silenced=False)
     assert cls("tests/data/output_from_file.tex").is_file()
     assert cls("tests/data/output_from_file.pdf").is_file()
 
