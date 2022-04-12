@@ -212,7 +212,13 @@ class TableWriter(object):
         if "escape" not in self.to_latex_args:
             self.to_latex_args["escape"] = True
         if "longtable" not in self.to_latex_args:
-            self.to_latex_args["longtable"] = True
+            if int(pd.__version__.split(".")[1]) >= 4:
+                self.to_latex_args["environment"] = "longtable"
+            else:
+                self.to_latex_args["longtable"] = True
+        elif int(pd.__version__.split(".")[1]) >= 4 and self.to_latex_args["longtable"] is True:
+            self.to_latex_args["environment"] = "longtable"
+            del self.to_latex_args["longtable"]
 
         if "geometry" not in self.packages:
             self.packages["geometry"] = {}
@@ -230,7 +236,7 @@ class TableWriter(object):
             self.packages["booktabs"] = {}
         if "inputenc" not in self.packages:
             self.packages["inputenc"] = {"utf8": None}
-        if "longtable" not in self.packages and self.to_latex_args["longtable"] is True:
+        if "longtable" not in self.packages and "environment" not in self.to_latex_args:
             self.packages["longtable"] = {}
 
         if isinstance(self.number, str):
@@ -298,9 +304,15 @@ class TableWriter(object):
             if self.paperheight > 24:
                 # Limit page height to A4's 24 cm
                 self.paperheight = 24
-                self.to_latex_args["longtable"] = True
+                if int(pd.__version__.split(".")[1]) >= 4:
+                    self.to_latex_args["environment"] = "longtable"
+                else:
+                    self.to_latex_args["longtable"] = True
             else:
-                self.to_latex_args["longtable"] = False
+                if int(pd.__version__.split(".")[1]) >= 4 and "environment" in self.to_latex_args:
+                    del self.to_latex_args["environment"]
+                else:
+                    self.to_latex_args["longtable"] = False
 
     def _make_header(self) -> None:
         """Makes the header of the tex file."""
@@ -339,7 +351,10 @@ class TableWriter(object):
             self.body = self.caption + ": Empty Dataframe\n"
             return
         else:
-            self.body = self.data.to_latex(**self.to_latex_args)
+            if int(pd.__version__.split(".")[1]) >= 4:
+                self.body = self.data.style.to_latex(**self.to_latex_args)
+            else:
+                self.body = self.data.to_latex(**self.to_latex_args)
         pd.set_option("display.max_colwidth", def_max_col)
 
         if self.caption is not None and self.hide_numbering:
@@ -410,7 +425,10 @@ class TableWriter(object):
             else:
                 self.data.columns = [self._escape_special_chars(s) for s in self.data.columns]
             self.data = self.data.applymap(self._escape_special_chars)
-        self.to_latex_args["escape"] = False
+        if int(pd.__version__.split(".")[1]) >= 4:
+            del self.to_latex_args["escape"]
+        else:
+            self.to_latex_args["escape"] = False
         self._make_header()
         self._make_body()
         self._make_footer()
